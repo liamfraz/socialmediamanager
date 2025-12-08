@@ -1,16 +1,211 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { insertPostSchema, updatePostSchema, postStatusEnum, reorderSchema } from "@shared/schema";
+import { z } from "zod";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
+  // Get all posts
+  app.get("/api/posts", async (_req, res) => {
+    try {
+      const posts = await storage.getAllPosts();
+      res.json(posts);
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+      res.status(500).json({ error: "Failed to fetch posts" });
+    }
+  });
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  // Get single post
+  app.get("/api/posts/:id", async (req, res) => {
+    try {
+      const post = await storage.getPost(req.params.id);
+      if (!post) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+      res.json(post);
+    } catch (error) {
+      console.error("Error fetching post:", error);
+      res.status(500).json({ error: "Failed to fetch post" });
+    }
+  });
+
+  // Create post
+  app.post("/api/posts", async (req, res) => {
+    try {
+      const validatedData = insertPostSchema.parse(req.body);
+      const post = await storage.createPost(validatedData);
+      res.status(201).json(post);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating post:", error);
+      res.status(500).json({ error: "Failed to create post" });
+    }
+  });
+
+  // Update post (content, images, scheduledDate)
+  app.put("/api/posts/:id", async (req, res) => {
+    try {
+      const validatedData = updatePostSchema.parse(req.body);
+      const post = await storage.updatePost(req.params.id, validatedData);
+      if (!post) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+      res.json(post);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating post:", error);
+      res.status(500).json({ error: "Failed to update post" });
+    }
+  });
+
+  // Update post status (approve/reject)
+  app.patch("/api/posts/:id/status", async (req, res) => {
+    try {
+      const { status } = req.body;
+      const validatedStatus = postStatusEnum.parse(status);
+      const post = await storage.updatePostStatus(req.params.id, validatedStatus);
+      if (!post) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+      res.json(post);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid status. Must be pending, approved, rejected, or draft" });
+      }
+      console.error("Error updating post status:", error);
+      res.status(500).json({ error: "Failed to update post status" });
+    }
+  });
+
+  // Reorder posts
+  app.put("/api/posts/reorder", async (req, res) => {
+    try {
+      const validatedData = reorderSchema.parse(req.body);
+      await storage.reorderPosts(validatedData.updates);
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error reordering posts:", error);
+      res.status(500).json({ error: "Failed to reorder posts" });
+    }
+  });
+
+  // Delete post
+  app.delete("/api/posts/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deletePost(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      res.status(500).json({ error: "Failed to delete post" });
+    }
+  });
+
+  // Seed initial data if database is empty
+  app.post("/api/seed", async (_req, res) => {
+    try {
+      const existingPosts = await storage.getAllPosts();
+      if (existingPosts.length > 0) {
+        return res.json({ message: "Database already has data", count: existingPosts.length });
+      }
+
+      const seedPosts = [
+        {
+          content: "Excited to announce our new product launch! Stay tuned for more updates coming next week. We can't wait to share what we've been working on.",
+          status: "pending" as const,
+          scheduledDate: new Date("2024-12-15T10:00:00"),
+          images: [
+            "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=600&h=600&fit=crop",
+            "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=600&h=600&fit=crop",
+            "https://images.unsplash.com/photo-1611162618071-b39a2ec055fb?w=600&h=600&fit=crop",
+          ],
+          order: 1,
+        },
+        {
+          content: "Join us for our upcoming webinar on digital marketing strategies. Learn from industry experts and take your business to the next level.",
+          status: "pending" as const,
+          scheduledDate: new Date("2024-12-16T14:00:00"),
+          images: ["https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=600&fit=crop"],
+          order: 2,
+        },
+        {
+          content: "Happy Friday everyone! What are your weekend plans? Let us know in the comments below.",
+          status: "approved" as const,
+          scheduledDate: new Date("2024-12-13T09:00:00"),
+          images: [
+            "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=600&fit=crop",
+            "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=600&h=600&fit=crop",
+          ],
+          order: 3,
+        },
+        {
+          content: "Check out our latest blog post about sustainable business practices. Link in bio!",
+          status: "rejected" as const,
+          scheduledDate: new Date("2024-12-14T11:30:00"),
+          images: null,
+          order: 4,
+        },
+        {
+          content: "Behind the scenes of our latest photoshoot. Stay tuned for the full reveal!",
+          status: "pending" as const,
+          scheduledDate: new Date("2024-12-17T16:00:00"),
+          images: [
+            "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=600&h=600&fit=crop",
+            "https://images.unsplash.com/photo-1554048612-b6a482bc67e5?w=600&h=600&fit=crop",
+            "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=600&h=600&fit=crop",
+            "https://images.unsplash.com/photo-1471341971476-ae15ff5dd4ea?w=600&h=600&fit=crop",
+          ],
+          order: 5,
+        },
+        {
+          content: "We're hiring! Join our growing team and be part of something amazing. Check out our careers page for open positions.",
+          status: "approved" as const,
+          scheduledDate: new Date("2024-12-18T08:00:00"),
+          images: ["https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&h=600&fit=crop"],
+          order: 6,
+        },
+        {
+          content: "Thank you to all our customers for making this year incredible. Here's to an even better next year!",
+          status: "pending" as const,
+          scheduledDate: new Date("2024-12-20T12:00:00"),
+          images: null,
+          order: 7,
+        },
+        {
+          content: "Quick tip: Always proofread your content before posting. A small typo can make a big difference!",
+          status: "pending" as const,
+          scheduledDate: new Date("2024-12-19T15:00:00"),
+          images: [
+            "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=600&h=600&fit=crop",
+            "https://images.unsplash.com/photo-1456324504439-367cee3b3c32?w=600&h=600&fit=crop",
+          ],
+          order: 8,
+        },
+      ];
+
+      for (const post of seedPosts) {
+        await storage.createPost(post);
+      }
+
+      res.json({ message: "Database seeded successfully", count: seedPosts.length });
+    } catch (error) {
+      console.error("Error seeding database:", error);
+      res.status(500).json({ error: "Failed to seed database" });
+    }
+  });
 
   return httpServer;
 }

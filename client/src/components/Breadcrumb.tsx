@@ -17,23 +17,24 @@ export default function Breadcrumb({ items }: BreadcrumbProps) {
       aria-label="Breadcrumb"
       data-testid="nav-breadcrumb"
     >
-      <Link href="/">
-        <a className="flex items-center text-muted-foreground hover:text-foreground" data-testid="link-breadcrumb-home">
-          <Home className="h-4 w-4" />
-        </a>
+      <Link 
+        href="/"
+        className="flex items-center text-muted-foreground hover:text-foreground"
+        data-testid="link-breadcrumb-home"
+      >
+        <Home className="h-4 w-4" />
       </Link>
 
       {items.map((item, index) => (
         <div key={index} className="flex items-center gap-1.5">
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
           {item.href ? (
-            <Link href={item.href}>
-              <a 
-                className="text-muted-foreground hover:text-foreground"
-                data-testid={`link-breadcrumb-${index}`}
-              >
-                {item.label}
-              </a>
+            <Link 
+              href={item.href}
+              className="text-muted-foreground hover:text-foreground"
+              data-testid={`link-breadcrumb-${index}`}
+            >
+              {item.label}
             </Link>
           ) : (
             <span 

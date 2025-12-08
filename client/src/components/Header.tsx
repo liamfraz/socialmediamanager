@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -11,6 +12,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface HeaderProps {
   title?: string;
@@ -18,6 +26,7 @@ interface HeaderProps {
 
 export default function Header({ title = "Post Review" }: HeaderProps) {
   const [, setLocation] = useLocation();
+  const [prepareDialogOpen, setPrepareDialogOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between gap-4 border-b bg-background px-6 py-4">
@@ -27,6 +36,9 @@ export default function Header({ title = "Post Review" }: HeaderProps) {
       </Link>
       
       <div className="flex items-center gap-2">
+        <Button variant="outline" onClick={() => setPrepareDialogOpen(true)} data-testid="button-prepare-posts">
+          Prepare Posts
+        </Button>
         <Button variant="ghost" size="icon" onClick={() => setLocation("/settings")} data-testid="button-settings">
           <Settings className="h-4 w-4" />
         </Button>
@@ -62,6 +74,17 @@ export default function Header({ title = "Post Review" }: HeaderProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <Dialog open={prepareDialogOpen} onOpenChange={setPrepareDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle data-testid="text-prepare-dialog-title">Prepare Posts</DialogTitle>
+            <DialogDescription>
+              This will initiate the workflow with n8n to prepare your posts.
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }

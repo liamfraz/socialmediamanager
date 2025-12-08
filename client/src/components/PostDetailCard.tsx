@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar, Clock, Plus, X } from "lucide-react";
 import { SiInstagram } from "react-icons/si";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
 import ImageCarousel from "./ImageCarousel";
@@ -14,6 +15,7 @@ interface PostDetailCardProps {
   scheduledDate: Date;
   images?: string[];
   onContentChange?: (content: string) => void;
+  onImagesChange?: (images: string[]) => void;
 }
 
 const INSTAGRAM_LIMIT = 2200;
@@ -23,17 +25,53 @@ export default function PostDetailCard({
   content,
   status,
   scheduledDate,
-  images,
+  images = [],
   onContentChange,
+  onImagesChange,
 }: PostDetailCardProps) {
   const [editedContent, setEditedContent] = useState(content);
+  const [currentImages, setCurrentImages] = useState<string[]>(images);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const remaining = INSTAGRAM_LIMIT - editedContent.length;
   const isNearLimit = remaining < INSTAGRAM_LIMIT * 0.1;
   const isOverLimit = remaining < 0;
 
-  const handleChange = (value: string) => {
+  const handleContentChange = (value: string) => {
     setEditedContent(value);
     onContentChange?.(value);
+  };
+
+  const handleAddPhoto = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const newUrl = event.target?.result as string;
+        setCurrentImages((prev) => {
+          const updated = [...prev, newUrl];
+          onImagesChange?.(updated);
+          return updated;
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    e.target.value = "";
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setCurrentImages((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      onImagesChange?.(updated);
+      return updated;
+    });
   };
 
   return (
@@ -59,14 +97,63 @@ export default function PostDetailCard({
       </CardHeader>
 
       <CardContent className="space-y-4 p-6">
-        {images && images.length > 0 && (
-          <ImageCarousel images={images} size="lg" />
+        {currentImages.length > 0 && (
+          <ImageCarousel images={currentImages} size="lg" />
         )}
+
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddPhoto}
+              data-testid="button-add-photo"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Photo
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileChange}
+              className="hidden"
+              data-testid="input-file-upload"
+            />
+            <span className="text-xs text-muted-foreground">
+              {currentImages.length} photo{currentImages.length !== 1 ? "s" : ""} attached
+            </span>
+          </div>
+
+          {currentImages.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {currentImages.map((img, idx) => (
+                <div key={idx} className="group relative">
+                  <img
+                    src={img}
+                    alt={`Thumbnail ${idx + 1}`}
+                    className="h-12 w-12 rounded-md object-cover"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => handleRemoveImage(idx)}
+                    className="absolute -right-1 -top-1 h-5 w-5 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                    data-testid={`button-remove-image-${idx}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="space-y-2">
           <Textarea
             value={editedContent}
-            onChange={(e) => handleChange(e.target.value)}
+            onChange={(e) => handleContentChange(e.target.value)}
             className="min-h-32 resize-none text-base"
             placeholder="Enter your post content..."
             data-testid="textarea-post-content"

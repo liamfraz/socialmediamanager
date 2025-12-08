@@ -5,7 +5,6 @@ export default function ActionPanelExample() {
     <ActionPanel
       onApprove={() => console.log("Approved")}
       onReject={() => console.log("Rejected")}
-      onRequestChanges={() => console.log("Request changes")}
       onBack={() => console.log("Back")}
     />
   );

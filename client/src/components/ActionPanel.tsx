@@ -1,10 +1,9 @@
 import { Button } from "@/components/ui/button";
-import { Check, X, ArrowLeft, MessageSquare } from "lucide-react";
+import { Check, X, ArrowLeft } from "lucide-react";
 
 interface ActionPanelProps {
   onApprove?: () => void;
   onReject?: () => void;
-  onRequestChanges?: () => void;
   onBack?: () => void;
   isLoading?: boolean;
 }
@@ -12,7 +11,6 @@ interface ActionPanelProps {
 export default function ActionPanel({
   onApprove,
   onReject,
-  onRequestChanges,
   onBack,
   isLoading = false,
 }: ActionPanelProps) {
@@ -29,16 +27,6 @@ export default function ActionPanel({
       </Button>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button
-          variant="outline"
-          onClick={onRequestChanges}
-          disabled={isLoading}
-          data-testid="button-request-changes"
-        >
-          <MessageSquare className="mr-2 h-4 w-4" />
-          Request Changes
-        </Button>
-
         <Button
           variant="outline"
           onClick={onReject}

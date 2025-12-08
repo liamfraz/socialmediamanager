@@ -97,6 +97,7 @@ export default function PostDetail() {
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [editedContent, setEditedContent] = useState<string | null>(null);
+  const [editedImages, setEditedImages] = useState<string[] | null>(null);
 
   const post = useMemo(() => {
     return mockPosts.find((p) => p.id === params.id);
@@ -137,14 +138,6 @@ export default function PostDetail() {
     setLocation("/");
   };
 
-  const handleRequestChanges = () => {
-    // todo: implement request changes functionality
-    toast({
-      title: "Changes Requested",
-      description: "Your feedback has been sent to the content team.",
-    });
-  };
-
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header title="Review Post" />
@@ -165,8 +158,9 @@ export default function PostDetail() {
             content={editedContent ?? post.content}
             status={post.status}
             scheduledDate={post.scheduledDate}
-            images={post.images}
+            images={editedImages ?? post.images}
             onContentChange={setEditedContent}
+            onImagesChange={setEditedImages}
           />
         </div>
       </main>
@@ -174,7 +168,6 @@ export default function PostDetail() {
       <ActionPanel
         onApprove={() => setApproveModalOpen(true)}
         onReject={() => setRejectModalOpen(true)}
-        onRequestChanges={handleRequestChanges}
         onBack={() => setLocation("/")}
       />
 

@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Settings, Bell } from "lucide-react";
+import { SiInstagram } from "react-icons/si";
 
 interface HeaderProps {
   title?: string;
@@ -10,8 +11,8 @@ export default function Header({ title = "Post Review" }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between gap-4 border-b bg-background px-6 py-4">
       <div className="flex items-center gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-          <span className="text-sm font-semibold text-primary-foreground">SM</span>
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500">
+          <SiInstagram className="h-4 w-4 text-white" />
         </div>
         <h1 className="text-xl font-semibold" data-testid="text-page-title">{title}</h1>
       </div>

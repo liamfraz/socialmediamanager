@@ -2,42 +2,32 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar, Clock } from "lucide-react";
-import PlatformBadge, { type Platform } from "./PlatformBadge";
+import { SiInstagram } from "react-icons/si";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
 import { format } from "date-fns";
 
 interface PostDetailCardProps {
   id: string;
   content: string;
-  platform: Platform;
   status: PostStatus;
   scheduledDate: Date;
   imageUrl?: string;
   onContentChange?: (content: string) => void;
-  maxLength?: number;
 }
 
-const platformLimits: Record<Platform, number> = {
-  twitter: 280,
-  facebook: 63206,
-  instagram: 2200,
-  linkedin: 3000,
-};
+const INSTAGRAM_LIMIT = 2200;
 
 export default function PostDetailCard({
   id,
   content,
-  platform,
   status,
   scheduledDate,
   imageUrl,
   onContentChange,
-  maxLength,
 }: PostDetailCardProps) {
   const [editedContent, setEditedContent] = useState(content);
-  const limit = maxLength || platformLimits[platform];
-  const remaining = limit - editedContent.length;
-  const isNearLimit = remaining < limit * 0.1;
+  const remaining = INSTAGRAM_LIMIT - editedContent.length;
+  const isNearLimit = remaining < INSTAGRAM_LIMIT * 0.1;
   const isOverLimit = remaining < 0;
 
   const handleChange = (value: string) => {
@@ -49,7 +39,10 @@ export default function PostDetailCard({
     <Card className="w-full" data-testid={`card-post-detail-${id}`}>
       <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 border-b pb-4">
         <div className="flex items-center gap-3">
-          <PlatformBadge platform={platform} />
+          <div className="flex items-center gap-2 rounded-md bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 px-3 py-1.5">
+            <SiInstagram className="h-4 w-4 text-white" />
+            <span className="text-sm font-medium text-white">Instagram</span>
+          </div>
           <StatusBadge status={status} />
         </div>
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -95,7 +88,7 @@ export default function PostDetailCard({
               }`}
               data-testid="text-character-count"
             >
-              {editedContent.length} / {limit}
+              {editedContent.length} / {INSTAGRAM_LIMIT}
             </span>
           </div>
         </div>

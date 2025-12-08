@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { Platform } from "./PlatformBadge";
 import type { PostStatus } from "./StatusBadge";
 
 interface FilterBarProps {
-  onPlatformChange?: (platform: Platform | "all") => void;
   onStatusChange?: (status: PostStatus | "all") => void;
   counts?: {
     all: number;
@@ -15,48 +13,25 @@ interface FilterBarProps {
   };
 }
 
-export default function FilterBar({ onPlatformChange, onStatusChange, counts }: FilterBarProps) {
-  const [activePlatform, setActivePlatform] = useState<Platform | "all">("all");
+export default function FilterBar({ onStatusChange, counts }: FilterBarProps) {
   const [activeStatus, setActiveStatus] = useState<PostStatus | "all">("all");
-
-  const handlePlatformClick = (platform: Platform | "all") => {
-    setActivePlatform(platform);
-    onPlatformChange?.(platform);
-  };
 
   const handleStatusClick = (status: PostStatus | "all") => {
     setActiveStatus(status);
     onStatusChange?.(status);
   };
 
-  const platforms: (Platform | "all")[] = ["all", "facebook", "instagram", "linkedin", "twitter"];
   const statuses: { key: PostStatus | "all"; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "pending", label: "Pending" },
+    { key: "all", label: "All Posts" },
+    { key: "pending", label: "Pending Review" },
     { key: "approved", label: "Approved" },
     { key: "rejected", label: "Rejected" },
   ];
 
   return (
-    <div className="flex flex-col gap-4 border-b bg-background px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex items-center gap-4 border-b bg-background px-6 py-4">
+      <span className="text-sm font-medium text-muted-foreground">Filter:</span>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-muted-foreground">Platform:</span>
-        {platforms.map((platform) => (
-          <Button
-            key={platform}
-            variant={activePlatform === platform ? "default" : "outline"}
-            size="sm"
-            onClick={() => handlePlatformClick(platform)}
-            data-testid={`button-filter-platform-${platform}`}
-            className="capitalize"
-          >
-            {platform === "all" ? "All" : platform}
-          </Button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-muted-foreground">Status:</span>
         {statuses.map(({ key, label }) => (
           <Button
             key={key}
@@ -74,6 +49,9 @@ export default function FilterBar({ onPlatformChange, onStatusChange, counts }: 
             )}
           </Button>
         ))}
+      </div>
+      <div className="ml-auto text-xs text-muted-foreground">
+        Posts at the top will be published first
       </div>
     </div>
   );

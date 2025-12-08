@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Settings, Bell, LogOut, User } from "lucide-react";
+import { Settings, LogOut, User } from "lucide-react";
 import flowtechLogo from "@assets/Screenshot_2025-11-29_at_1.38.06_pm_1765196594766.png";
 import {
   DropdownMenu,
@@ -27,9 +27,6 @@ export default function Header({ title = "Post Review" }: HeaderProps) {
       </Link>
       
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" data-testid="button-notifications">
-          <Bell className="h-4 w-4" />
-        </Button>
         <Button variant="ghost" size="icon" onClick={() => setLocation("/settings")} data-testid="button-settings">
           <Settings className="h-4 w-4" />
         </Button>

@@ -79,7 +79,7 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <Header title="Instagram Post Queue" />
+        <Header title="Flowtech Post Management" />
         <main className="flex flex-1 items-center justify-center">
           <div className="text-muted-foreground" data-testid="loading-indicator">Loading posts...</div>
         </main>
@@ -89,7 +89,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Header title="Instagram Post Queue" />
+      <Header title="Flowtech Post Management" />
       <FilterBar
         onStatusChange={setStatusFilter}
         counts={counts}

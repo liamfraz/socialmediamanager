@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Settings, Bell, LogOut, User } from "lucide-react";
-import { SiInstagram } from "react-icons/si";
+import flowtechLogo from "@assets/Screenshot_2025-11-29_at_1.38.06_pm_1765196594766.png";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,9 +22,7 @@ export default function Header({ title = "Post Review" }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between gap-4 border-b bg-background px-6 py-4">
       <Link href="/" className="flex items-center gap-3 hover-elevate active-elevate-2 rounded-md p-1 -m-1">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500">
-          <SiInstagram className="h-4 w-4 text-white" />
-        </div>
+        <img src={flowtechLogo} alt="Flowtech" className="h-8 w-8 object-contain" />
         <h1 className="text-xl font-semibold" data-testid="text-page-title">{title}</h1>
       </Link>
       

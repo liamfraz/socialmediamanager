@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Calendar, Clock } from "lucide-react";
 import { SiInstagram } from "react-icons/si";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
+import ImageCarousel from "./ImageCarousel";
 import { format } from "date-fns";
 
 interface PostDetailCardProps {
@@ -11,7 +12,7 @@ interface PostDetailCardProps {
   content: string;
   status: PostStatus;
   scheduledDate: Date;
-  imageUrl?: string;
+  images?: string[];
   onContentChange?: (content: string) => void;
 }
 
@@ -22,7 +23,7 @@ export default function PostDetailCard({
   content,
   status,
   scheduledDate,
-  imageUrl,
+  images,
   onContentChange,
 }: PostDetailCardProps) {
   const [editedContent, setEditedContent] = useState(content);
@@ -58,15 +59,8 @@ export default function PostDetailCard({
       </CardHeader>
 
       <CardContent className="space-y-4 p-6">
-        {imageUrl && (
-          <div className="overflow-hidden rounded-lg bg-muted">
-            <img
-              src={imageUrl}
-              alt="Post media"
-              className="max-h-96 w-full object-contain"
-              data-testid={`img-post-detail-${id}`}
-            />
-          </div>
+        {images && images.length > 0 && (
+          <ImageCarousel images={images} size="lg" />
         )}
 
         <div className="space-y-2">

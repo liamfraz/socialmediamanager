@@ -1,7 +1,8 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, ChevronUp, ChevronDown, GripVertical } from "lucide-react";
+import { Calendar, ChevronUp, ChevronDown, GripVertical, Images } from "lucide-react";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
+import ImageCarousel from "./ImageCarousel";
 import { format } from "date-fns";
 
 export interface Post {
@@ -9,7 +10,7 @@ export interface Post {
   content: string;
   status: PostStatus;
   scheduledDate: Date;
-  imageUrl?: string;
+  images?: string[];
   order: number;
 }
 
@@ -32,6 +33,7 @@ export default function PostRow({
 }: PostRowProps) {
   const isFirst = index === 0;
   const isLast = index === totalPosts - 1;
+  const hasMultipleImages = post.images && post.images.length > 1;
 
   return (
     <Card 
@@ -76,14 +78,14 @@ export default function PostRow({
         </span>
       </div>
 
-      {post.imageUrl && (
-        <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-muted">
-          <img
-            src={post.imageUrl}
-            alt="Post preview"
-            className="h-full w-full object-cover"
-            data-testid={`img-post-${post.id}`}
-          />
+      {post.images && post.images.length > 0 && (
+        <div className="relative w-16 flex-shrink-0">
+          <ImageCarousel images={post.images} size="sm" className="h-16 w-16" />
+          {hasMultipleImages && (
+            <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+              <Images className="h-3 w-3" />
+            </div>
+          )}
         </div>
       )}
 
@@ -104,6 +106,9 @@ export default function PostRow({
               {format(post.scheduledDate, "MMM d, yyyy 'at' h:mm a")}
             </span>
           </div>
+          {hasMultipleImages && (
+            <span className="text-muted-foreground">{post.images!.length} photos</span>
+          )}
         </div>
       </div>
 

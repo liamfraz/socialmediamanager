@@ -15,10 +15,13 @@ export default function Login() {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simple redirect to dashboard (no actual auth for now)
     setTimeout(() => {
       setIsLoading(false);
-      setLocation("/dashboard");
+      if (username === "liam" && password === "Password") {
+        setLocation("/dashboard");
+      } else {
+        alert("Invalid username or password");
+      }
     }, 300);
   };
 

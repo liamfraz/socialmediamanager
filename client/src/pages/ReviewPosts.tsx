@@ -1,6 +1,5 @@
 import { useMemo, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Header from "@/components/Header";
 import PostRow from "@/components/PostRow";
 import EmptyState from "@/components/EmptyState";
 import { useLocation } from "wouter";
@@ -42,19 +41,14 @@ export default function ReviewPosts() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen flex-col bg-background">
-        <Header />
-        <main className="flex flex-1 items-center justify-center">
-          <div className="text-muted-foreground" data-testid="loading-indicator">Loading posts...</div>
-        </main>
+      <div className="flex flex-1 items-center justify-center">
+        <div className="text-muted-foreground" data-testid="loading-indicator">Loading posts...</div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Header />
-      
+    <div className="flex flex-col h-full">
       <div className="border-b px-6 py-3">
         <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as FilterType)}>
           <TabsList>

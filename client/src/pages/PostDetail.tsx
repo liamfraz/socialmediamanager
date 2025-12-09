@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import Header from "@/components/Header";
 import Breadcrumb from "@/components/Breadcrumb";
 import PostDetailCard from "@/components/PostDetailCard";
 import ActionPanel from "@/components/ActionPanel";
@@ -45,31 +44,24 @@ export default function PostDetail() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen flex-col bg-background">
-        <Header title="Loading..." />
-        <main className="flex flex-1 items-center justify-center">
-          <div className="text-muted-foreground" data-testid="loading-indicator">Loading post...</div>
-        </main>
+      <div className="flex flex-1 items-center justify-center">
+        <div className="text-muted-foreground" data-testid="loading-indicator">Loading post...</div>
       </div>
     );
   }
 
   if (!post) {
     return (
-      <div className="flex min-h-screen flex-col bg-background">
-        <Header title="Post Not Found" />
-        <main className="flex flex-1 items-center justify-center">
-          <div className="text-center">
-            <h2 className="mb-2 text-xl font-semibold" data-testid="text-not-found">Post not found</h2>
-            <p className="text-muted-foreground">The post you're looking for doesn't exist.</p>
-          </div>
-        </main>
+      <div className="flex flex-1 items-center justify-center">
+        <div className="text-center">
+          <h2 className="mb-2 text-xl font-semibold" data-testid="text-not-found">Post not found</h2>
+          <p className="text-muted-foreground">The post you're looking for doesn't exist.</p>
+        </div>
       </div>
     );
   }
 
   const handleApprove = async () => {
-    // Save any edits first
     if (editedContent !== null || editedImages !== null) {
       const data: { content?: string; images?: string[] } = {};
       if (editedContent !== null) data.content = editedContent;
@@ -100,9 +92,7 @@ export default function PostDetail() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Header title="Review Post" />
-      
+    <div className="flex flex-1 flex-col">
       <div className="border-b px-6 py-3">
         <Breadcrumb
           items={[

@@ -52,7 +52,7 @@ export function AppSidebar() {
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
           <img src={flowtechLogo} alt="Flowtech" className="h-8 w-8 object-contain" />
-          <span className="font-semibold text-lg">Flowtech</span>
+          <span className="font-semibold text-lg">Flowtech Advisory</span>
         </div>
       </SidebarHeader>
       <SidebarContent>

@@ -27,7 +27,7 @@ export default function Login() {
       <Card className="w-full max-w-sm">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl" data-testid="text-login-title">
-            Socials Post Manager
+            Flowtech Advisory
           </CardTitle>
           <CardDescription data-testid="text-login-description">
             Sign in to manage your social media posts

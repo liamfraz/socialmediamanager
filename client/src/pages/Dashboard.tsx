@@ -159,38 +159,22 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div>
-            <div className="mb-4 flex items-center gap-2">
-              <Send className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <h2 className="text-lg font-semibold">Posted</h2>
-              <Badge variant="outline" className="ml-2">{postedPosts.length}</Badge>
-            </div>
-            
-            {postedPosts.length === 0 ? (
-              <Card className="p-8 text-center">
-                <p className="text-muted-foreground">No posts have been published yet.</p>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {postedPosts.map((post, index) => (
-                  <PostRow
-                    key={post.id}
-                    post={{
-                      id: post.id,
-                      content: post.content,
-                      status: post.status as PostStatus,
-                      scheduledDate: new Date(post.scheduledDate),
-                      images: post.images ?? undefined,
-                      order: post.order,
-                    }}
-                    index={index}
-                    totalPosts={postedPosts.length}
-                    onClick={() => handlePostClick(post.id)}
-                  />
-                ))}
+          <Link href="/posted">
+            <Card className="flex items-center justify-between p-4 hover-elevate cursor-pointer" data-testid="link-posted-posts">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950/50">
+                  <Send className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="font-medium">Posted</h2>
+                  <p className="text-sm text-muted-foreground">View published posts</p>
+                </div>
               </div>
-            )}
-          </div>
+              <Badge variant="secondary" className="flex items-center gap-1.5">
+                {postedPosts.length} posted
+              </Badge>
+            </Card>
+          </Link>
         </div>
       </main>
     </div>

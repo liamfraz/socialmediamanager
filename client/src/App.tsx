@@ -11,7 +11,6 @@ import Dashboard from "@/pages/Dashboard";
 import ReviewPosts from "@/pages/ReviewPosts";
 import PostedPosts from "@/pages/PostedPosts";
 import PostDetail from "@/pages/PostDetail";
-import Settings from "@/pages/Settings";
 import Account from "@/pages/Account";
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -46,7 +45,6 @@ function AuthenticatedRoutes() {
         <Route path="/review" component={ReviewPosts} />
         <Route path="/posted" component={PostedPosts} />
         <Route path="/post/:id" component={PostDetail} />
-        <Route path="/settings" component={Settings} />
         <Route path="/account" component={Account} />
         <Route component={NotFound} />
       </Switch>

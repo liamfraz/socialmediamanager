@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { Home, ClipboardList, Send, User, Settings } from "lucide-react";
+import { Home, ClipboardList, Send, User } from "lucide-react";
 import flowtechLogo from "@assets/Screenshot_2025-11-29_at_1.38.06_pm_1765271076550.png";
 import {
   Sidebar,
@@ -36,11 +36,6 @@ const bottomItems = [
     title: "Account",
     url: "/account",
     icon: User,
-  },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
   },
 ];
 

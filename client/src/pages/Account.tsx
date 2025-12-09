@@ -1,4 +1,4 @@
-import { Mail, Calendar, Edit2 } from "lucide-react";
+import { Mail, Calendar, Edit2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -53,6 +53,23 @@ export default function Account() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-muted-foreground" />
+                <CardTitle className="text-lg">Privacy & Security</CardTitle>
+              </div>
+              <CardDescription>
+                Manage your security settings
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" className="w-full justify-start gap-2" data-testid="button-change-password">
+                Change Password
+              </Button>
             </CardContent>
           </Card>
         </div>

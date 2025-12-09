@@ -122,11 +122,20 @@ export async function registerRoutes(
         return res.json({ message: "Database already has data", count: existingPosts.length });
       }
 
+      // Generate future dates relative to today
+      const today = new Date();
+      const addDays = (days: number, hour: number = 10) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() + days);
+        date.setHours(hour, 0, 0, 0);
+        return date;
+      };
+
       const seedPosts = [
         {
           content: "Excited to announce our new product launch! Stay tuned for more updates coming next week. We can't wait to share what we've been working on.",
           status: "pending" as const,
-          scheduledDate: new Date("2024-12-15T10:00:00"),
+          scheduledDate: addDays(3, 10),
           images: [
             "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=600&h=600&fit=crop",
             "https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=600&h=600&fit=crop",
@@ -137,14 +146,14 @@ export async function registerRoutes(
         {
           content: "Join us for our upcoming webinar on digital marketing strategies. Learn from industry experts and take your business to the next level.",
           status: "pending" as const,
-          scheduledDate: new Date("2024-12-16T14:00:00"),
+          scheduledDate: addDays(4, 14),
           images: ["https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=600&fit=crop"],
           order: 2,
         },
         {
           content: "Happy Friday everyone! What are your weekend plans? Let us know in the comments below.",
           status: "approved" as const,
-          scheduledDate: new Date("2024-12-13T09:00:00"),
+          scheduledDate: addDays(1, 9),
           images: [
             "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=600&fit=crop",
             "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=600&h=600&fit=crop",
@@ -154,14 +163,14 @@ export async function registerRoutes(
         {
           content: "Check out our latest blog post about sustainable business practices. Link in bio!",
           status: "rejected" as const,
-          scheduledDate: new Date("2024-12-14T11:30:00"),
+          scheduledDate: addDays(2, 11),
           images: null,
           order: 4,
         },
         {
           content: "Behind the scenes of our latest photoshoot. Stay tuned for the full reveal!",
           status: "pending" as const,
-          scheduledDate: new Date("2024-12-17T16:00:00"),
+          scheduledDate: addDays(5, 16),
           images: [
             "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=600&h=600&fit=crop",
             "https://images.unsplash.com/photo-1554048612-b6a482bc67e5?w=600&h=600&fit=crop",
@@ -173,21 +182,21 @@ export async function registerRoutes(
         {
           content: "We're hiring! Join our growing team and be part of something amazing. Check out our careers page for open positions.",
           status: "approved" as const,
-          scheduledDate: new Date("2024-12-18T08:00:00"),
+          scheduledDate: addDays(6, 8),
           images: ["https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&h=600&fit=crop"],
           order: 6,
         },
         {
           content: "Thank you to all our customers for making this year incredible. Here's to an even better next year!",
           status: "pending" as const,
-          scheduledDate: new Date("2024-12-20T12:00:00"),
+          scheduledDate: addDays(8, 12),
           images: null,
           order: 7,
         },
         {
           content: "Quick tip: Always proofread your content before posting. A small typo can make a big difference!",
           status: "pending" as const,
-          scheduledDate: new Date("2024-12-19T15:00:00"),
+          scheduledDate: addDays(7, 15),
           images: [
             "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=600&h=600&fit=crop",
             "https://images.unsplash.com/photo-1456324504439-367cee3b3c32?w=600&h=600&fit=crop",

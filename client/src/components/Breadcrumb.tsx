@@ -18,7 +18,7 @@ export default function Breadcrumb({ items }: BreadcrumbProps) {
       data-testid="nav-breadcrumb"
     >
       <Link 
-        href="/"
+        href="/dashboard"
         className="flex items-center text-muted-foreground hover:text-foreground"
         data-testid="link-breadcrumb-home"
       >

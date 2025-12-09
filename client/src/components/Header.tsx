@@ -19,6 +19,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface HeaderProps {
   title?: string;
@@ -27,6 +37,8 @@ interface HeaderProps {
 export default function Header({ title = "Post Review" }: HeaderProps) {
   const [, setLocation] = useLocation();
   const [prepareDialogOpen, setPrepareDialogOpen] = useState(false);
+  const [postCount, setPostCount] = useState("1");
+  const [postTopics, setPostTopics] = useState<string[]>([""]);
 
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between gap-4 border-b bg-background px-6 py-4">
@@ -75,14 +87,82 @@ export default function Header({ title = "Post Review" }: HeaderProps) {
         </DropdownMenu>
       </div>
 
-      <Dialog open={prepareDialogOpen} onOpenChange={setPrepareDialogOpen}>
-        <DialogContent>
+      <Dialog open={prepareDialogOpen} onOpenChange={(open) => {
+        setPrepareDialogOpen(open);
+        if (!open) {
+          setPostCount("1");
+          setPostTopics([""]);
+        }
+      }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle data-testid="text-prepare-dialog-title">Prepare Posts</DialogTitle>
             <DialogDescription>
               This will initiate the workflow with n8n to prepare your posts.
             </DialogDescription>
           </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="post-count">Number of posts to prepare</Label>
+              <Select 
+                value={postCount} 
+                onValueChange={(value) => {
+                  setPostCount(value);
+                  const count = parseInt(value);
+                  setPostTopics(prev => {
+                    const newTopics = [...prev];
+                    while (newTopics.length < count) newTopics.push("");
+                    return newTopics.slice(0, count);
+                  });
+                }}
+              >
+                <SelectTrigger id="post-count" data-testid="select-post-count">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                    <SelectItem key={num} value={String(num)} data-testid={`select-item-count-${num}`}>
+                      {num} {num === 1 ? "post" : "posts"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <ScrollArea className="max-h-60">
+              <div className="space-y-3 pr-4">
+                {Array.from({ length: parseInt(postCount) }).map((_, index) => (
+                  <div key={index} className="space-y-1">
+                    <Label htmlFor={`topic-${index}`}>Post {index + 1} topic</Label>
+                    <Input
+                      id={`topic-${index}`}
+                      placeholder="e.g., weddings, flowers, business tips..."
+                      value={postTopics[index] || ""}
+                      onChange={(e) => {
+                        const newTopics = [...postTopics];
+                        newTopics[index] = e.target.value;
+                        setPostTopics(newTopics);
+                      }}
+                      data-testid={`input-topic-${index}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <Button 
+            className="w-full" 
+            onClick={() => {
+              setPrepareDialogOpen(false);
+              setPostCount("1");
+              setPostTopics([""]);
+            }}
+            data-testid="button-confirm-prepare"
+          >
+            Confirm Prepare Posts
+          </Button>
         </DialogContent>
       </Dialog>
     </header>

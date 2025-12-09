@@ -40,6 +40,9 @@ function App() {
           <div className="flex h-screen w-full">
             <AppSidebar />
             <div className="flex flex-col flex-1 overflow-hidden">
+              <header className="flex items-center border-b bg-background px-6 py-4">
+                <h1 className="text-xl font-semibold" data-testid="text-app-title">Socials Post Manager</h1>
+              </header>
               <main className="flex-1 overflow-auto">
                 <Router />
               </main>

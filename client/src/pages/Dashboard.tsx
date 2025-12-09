@@ -5,7 +5,7 @@ import PostCalendar, { type CalendarPost } from "@/components/PostCalendar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useLocation, Link } from "wouter";
-import { ClipboardList, CheckCircle2, Send } from "lucide-react";
+import { CheckCircle2, Send } from "lucide-react";
 import type { PostStatus } from "@/components/StatusBadge";
 import type { Post } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -40,10 +40,6 @@ export default function Dashboard() {
     return posts
       .filter((post) => post.status === "posted")
       .sort((a, b) => a.order - b.order);
-  }, [posts]);
-
-  const pendingCount = useMemo(() => {
-    return posts.filter((p) => p.status === "pending").length;
   }, [posts]);
 
   const calendarPosts: CalendarPost[] = useMemo(() => {
@@ -98,23 +94,6 @@ export default function Dashboard() {
   return (
     <div className="p-6">
       <div className="mx-auto max-w-4xl space-y-6">
-        <Link href="/review">
-          <Card className="flex items-center justify-between p-4 hover-elevate cursor-pointer" data-testid="link-review-posts">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-950/50">
-                <ClipboardList className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <h2 className="font-medium">Review Posts</h2>
-                <p className="text-sm text-muted-foreground">Review and approve pending posts</p>
-              </div>
-            </div>
-            <Badge variant="secondary" className="flex items-center gap-1.5">
-              {pendingCount} pending
-            </Badge>
-          </Card>
-        </Link>
-
         <PostCalendar posts={calendarPosts} onPostClick={handlePostClick} />
 
         <div>

@@ -43,7 +43,7 @@ export default function ReviewPosts() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <Header title="Review Posts" />
+        <Header />
         <main className="flex flex-1 items-center justify-center">
           <div className="text-muted-foreground" data-testid="loading-indicator">Loading posts...</div>
         </main>
@@ -53,7 +53,7 @@ export default function ReviewPosts() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Header title="Review Posts" />
+      <Header />
       
       <div className="border-b px-6 py-3">
         <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as FilterType)}>

@@ -30,11 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-interface HeaderProps {
-  title?: string;
-}
-
-export default function Header({ title = "Post Review" }: HeaderProps) {
+export default function Header() {
   const [, setLocation] = useLocation();
   const [prepareDialogOpen, setPrepareDialogOpen] = useState(false);
   const [postCount, setPostCount] = useState("1");
@@ -44,7 +40,7 @@ export default function Header({ title = "Post Review" }: HeaderProps) {
     <header className="sticky top-0 z-50 flex items-center justify-between gap-4 border-b bg-background px-6 py-4">
       <Link href="/" className="flex items-center gap-3 hover-elevate active-elevate-2 rounded-md p-1 -m-1">
         <img src={flowtechLogo} alt="Flowtech" className="h-8 w-8 object-contain" />
-        <h1 className="text-xl font-semibold" data-testid="text-page-title">{title}</h1>
+        <h1 className="text-xl font-semibold" data-testid="text-page-title">Flowtech Post Management</h1>
       </Link>
       
       <div className="flex items-center gap-2">

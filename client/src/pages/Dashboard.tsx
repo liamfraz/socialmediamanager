@@ -91,7 +91,7 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <Header title="Home" />
+        <Header />
         <main className="flex flex-1 items-center justify-center">
           <div className="text-muted-foreground" data-testid="loading-indicator">Loading...</div>
         </main>
@@ -101,7 +101,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Header title="Home" />
+      <Header />
       
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-4xl space-y-6">

@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Bell, Globe, Shield, HelpCircle } from "lucide-react";
+import { ArrowLeft, Bell, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import Header from "@/components/Header";
 
@@ -12,7 +11,6 @@ export default function Settings() {
   const [, setLocation] = useLocation();
   const [notifications, setNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
-  const [language, setLanguage] = useState("en");
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -78,41 +76,6 @@ export default function Settings() {
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Globe className="h-5 w-5 text-muted-foreground" />
-                  <CardTitle className="text-lg">Language & Region</CardTitle>
-                </div>
-                <CardDescription>
-                  Set your preferred language
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="space-y-0.5">
-                    <label className="text-sm font-medium" htmlFor="language">
-                      Language
-                    </label>
-                    <p className="text-sm text-muted-foreground">
-                      Select your preferred language
-                    </p>
-                  </div>
-                  <Select value={language} onValueChange={setLanguage}>
-                    <SelectTrigger className="w-40" data-testid="select-language">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="en" data-testid="select-item-language-en">English</SelectItem>
-                      <SelectItem value="es" data-testid="select-item-language-es">Spanish</SelectItem>
-                      <SelectItem value="fr" data-testid="select-item-language-fr">French</SelectItem>
-                      <SelectItem value="de" data-testid="select-item-language-de">German</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
                   <Shield className="h-5 w-5 text-muted-foreground" />
                   <CardTitle className="text-lg">Privacy & Security</CardTitle>
                 </div>
@@ -120,32 +83,9 @@ export default function Settings() {
                   Manage your security settings
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <Button variant="outline" className="w-full justify-start gap-2" data-testid="button-change-password">
                   Change Password
-                </Button>
-                <Button variant="outline" className="w-full justify-start gap-2" data-testid="button-two-factor">
-                  Enable Two-Factor Authentication
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <HelpCircle className="h-5 w-5 text-muted-foreground" />
-                  <CardTitle className="text-lg">Help & Support</CardTitle>
-                </div>
-                <CardDescription>
-                  Get help with using the app
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button variant="outline" className="w-full justify-start gap-2" data-testid="button-documentation">
-                  Documentation
-                </Button>
-                <Button variant="outline" className="w-full justify-start gap-2" data-testid="button-contact-support">
-                  Contact Support
                 </Button>
               </CardContent>
             </Card>

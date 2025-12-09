@@ -19,6 +19,21 @@ export async function registerRoutes(
     }
   });
 
+  // Reorder posts - MUST be before /api/posts/:id to avoid matching "reorder" as an id
+  app.put("/api/posts/reorder", async (req, res) => {
+    try {
+      const validatedData = reorderSchema.parse(req.body);
+      await storage.reorderPosts(validatedData.updates);
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error reordering posts:", error);
+      res.status(500).json({ error: "Failed to reorder posts" });
+    }
+  });
+
   // Get single post
   app.get("/api/posts/:id", async (req, res) => {
     try {
@@ -82,21 +97,6 @@ export async function registerRoutes(
       }
       console.error("Error updating post status:", error);
       res.status(500).json({ error: "Failed to update post status" });
-    }
-  });
-
-  // Reorder posts
-  app.put("/api/posts/reorder", async (req, res) => {
-    try {
-      const validatedData = reorderSchema.parse(req.body);
-      await storage.reorderPosts(validatedData.updates);
-      res.json({ success: true });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-      console.error("Error reordering posts:", error);
-      res.status(500).json({ error: "Failed to reorder posts" });
     }
   });
 

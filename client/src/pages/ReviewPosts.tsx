@@ -133,7 +133,7 @@ export default function ReviewPosts() {
                       id={post.id}
                       content={post.content}
                       images={post.images ?? undefined}
-                      order={index + 1}
+                      rowIndex={index}
                       onClick={() => handlePostClick(post.id)}
                     />
                   ))}

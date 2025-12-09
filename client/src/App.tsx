@@ -40,8 +40,9 @@ function App() {
           <div className="flex h-screen w-full">
             <AppSidebar />
             <div className="flex flex-col flex-1 overflow-hidden">
-              <header className="flex items-center border-b bg-background px-6 py-4">
-                <h1 className="text-xl font-semibold" data-testid="text-app-title">Socials Post Manager</h1>
+              <header className="flex items-center justify-between gap-4 border-b bg-background px-6 py-4">
+                <h1 className="text-2xl font-bold" data-testid="text-app-title">Socials Post Manager</h1>
+                <span className="text-sm text-muted-foreground" data-testid="text-account-name">John Doe</span>
               </header>
               <main className="flex-1 overflow-auto">
                 <Router />

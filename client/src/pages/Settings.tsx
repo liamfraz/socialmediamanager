@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Bell, Moon, Sun, Globe, Shield, HelpCircle } from "lucide-react";
+import { ArrowLeft, Bell, Globe, Shield, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -12,7 +12,6 @@ export default function Settings() {
   const [, setLocation] = useLocation();
   const [notifications, setNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const [language, setLanguage] = useState("en");
 
   return (
@@ -71,36 +70,6 @@ export default function Settings() {
                     checked={emailNotifications}
                     onCheckedChange={setEmailNotifications}
                     data-testid="switch-email-notifications"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Sun className="h-5 w-5 text-muted-foreground" />
-                  <CardTitle className="text-lg">Appearance</CardTitle>
-                </div>
-                <CardDescription>
-                  Customize how the app looks
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="space-y-0.5">
-                    <label className="text-sm font-medium" htmlFor="dark-mode">
-                      Dark Mode
-                    </label>
-                    <p className="text-sm text-muted-foreground">
-                      Use dark theme for the application
-                    </p>
-                  </div>
-                  <Switch
-                    id="dark-mode"
-                    checked={darkMode}
-                    onCheckedChange={setDarkMode}
-                    data-testid="switch-dark-mode"
                   />
                 </div>
               </CardContent>

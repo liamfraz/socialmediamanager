@@ -9,6 +9,7 @@ import { CheckCircle2 } from "lucide-react";
 import type { PostStatus } from "@/components/StatusBadge";
 import type { Post } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { addDays, setHours, setMinutes } from "date-fns";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -36,12 +37,17 @@ export default function Dashboard() {
       .sort((a, b) => a.order - b.order);
   }, [posts]);
 
+  const getScheduledDateForPosition = (index: number) => {
+    const tomorrow = addDays(new Date(), index + 1);
+    return setMinutes(setHours(tomorrow, 9), 0);
+  };
+
   const calendarPosts: CalendarPost[] = useMemo(() => {
-    return approvedPosts.map(post => ({
+    return approvedPosts.map((post, index) => ({
       id: post.id,
       content: post.content,
       status: post.status,
-      scheduledDate: new Date(post.scheduledDate),
+      scheduledDate: getScheduledDateForPosition(index),
     }));
   }, [approvedPosts]);
 
@@ -50,30 +56,30 @@ export default function Dashboard() {
   };
 
   const handleMoveUp = (postId: string) => {
-    const sorted = [...approvedPosts].sort((a, b) => a.order - b.order);
+    const sorted = [...approvedPosts];
     const index = sorted.findIndex((p) => p.id === postId);
     if (index <= 0) return;
 
-    const currentOrder = sorted[index].order;
-    const prevOrder = sorted[index - 1].order;
+    const currentPost = sorted[index];
+    const prevPost = sorted[index - 1];
     
     reorderMutation.mutate([
-      { id: sorted[index].id, order: prevOrder },
-      { id: sorted[index - 1].id, order: currentOrder },
+      { id: currentPost.id, order: prevPost.order },
+      { id: prevPost.id, order: currentPost.order },
     ]);
   };
 
   const handleMoveDown = (postId: string) => {
-    const sorted = [...approvedPosts].sort((a, b) => a.order - b.order);
+    const sorted = [...approvedPosts];
     const index = sorted.findIndex((p) => p.id === postId);
     if (index < 0 || index >= sorted.length - 1) return;
 
-    const currentOrder = sorted[index].order;
-    const nextOrder = sorted[index + 1].order;
+    const currentPost = sorted[index];
+    const nextPost = sorted[index + 1];
     
     reorderMutation.mutate([
-      { id: sorted[index].id, order: nextOrder },
-      { id: sorted[index + 1].id, order: currentOrder },
+      { id: currentPost.id, order: nextPost.order },
+      { id: nextPost.id, order: currentPost.order },
     ]);
   };
 
@@ -110,7 +116,7 @@ export default function Dashboard() {
                     id: post.id,
                     content: post.content,
                     status: post.status as PostStatus,
-                    scheduledDate: new Date(post.scheduledDate),
+                    scheduledDate: getScheduledDateForPosition(index),
                     images: post.images ?? undefined,
                     order: post.order,
                   }}

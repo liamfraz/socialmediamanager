@@ -11,16 +11,18 @@ import { addDays, format, isToday, isTomorrow } from "date-fns";
 import type { Post } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-function WeekAheadCalendar({ postCount }: { postCount: number }) {
+function WeekAheadCalendar({ posts }: { posts: Post[] }) {
   const today = new Date();
   const days = Array.from({ length: 6 }, (_, i) => addDays(today, i + 1));
 
   return (
-    <div className="mb-6 rounded-lg border bg-card p-4">
-      <h3 className="mb-3 text-sm font-medium text-muted-foreground">Upcoming Schedule</h3>
-      <div className="grid grid-cols-6 gap-2">
+    <div className="mb-6 rounded-lg border bg-card p-5">
+      <h3 className="mb-4 text-base font-semibold">Upcoming Schedule</h3>
+      <div className="grid grid-cols-6 gap-3">
         {days.map((day, index) => {
-          const hasPost = index < postCount;
+          const post = posts[index];
+          const hasPost = !!post;
+          const firstImage = post?.images?.[0];
           const dayName = isTomorrow(day) ? "Tomorrow" : format(day, "EEE");
           const dayNum = format(day, "d");
           const month = format(day, "MMM");
@@ -28,18 +30,30 @@ function WeekAheadCalendar({ postCount }: { postCount: number }) {
           return (
             <div
               key={index}
-              className={`flex flex-col items-center rounded-md p-2 text-center ${
+              className={`flex flex-col items-center rounded-lg p-3 text-center ${
                 hasPost 
                   ? "bg-primary/10 border border-primary/20" 
                   : "bg-muted/50"
               }`}
               data-testid={`calendar-day-${index}`}
             >
-              <span className="text-xs text-muted-foreground">{dayName}</span>
-              <span className="text-lg font-semibold">{dayNum}</span>
-              <span className="text-xs text-muted-foreground">{month}</span>
-              {hasPost && (
-                <div className="mt-1 h-1.5 w-1.5 rounded-full bg-primary" />
+              <span className="text-xs font-medium text-muted-foreground">{dayName}</span>
+              <span className="text-2xl font-bold">{dayNum}</span>
+              <span className="text-xs text-muted-foreground mb-2">{month}</span>
+              {firstImage ? (
+                <div className="h-16 w-16 overflow-hidden rounded-md">
+                  <img 
+                    src={firstImage} 
+                    alt="" 
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ) : hasPost ? (
+                <div className="flex h-16 w-16 items-center justify-center rounded-md bg-muted">
+                  <span className="text-xs text-muted-foreground">No image</span>
+                </div>
+              ) : (
+                <div className="h-16 w-16 rounded-md border-2 border-dashed border-muted-foreground/20" />
               )}
             </div>
           );
@@ -123,8 +137,8 @@ export default function Dashboard() {
 
   return (
     <div className="p-6">
-      <div className="mx-auto max-w-2xl space-y-6">
-        <WeekAheadCalendar postCount={localPosts.length} />
+      <div className="mx-auto max-w-4xl space-y-6">
+        <WeekAheadCalendar posts={localPosts} />
         
         <div>
           <div className="mb-4 flex items-center gap-2">

@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import FilterBar from "@/components/FilterBar";
 import PostRow from "@/components/PostRow";
+import PostCalendar, { type CalendarPost } from "@/components/PostCalendar";
 import EmptyState from "@/components/EmptyState";
 import { useLocation } from "wouter";
 import type { PostStatus } from "@/components/StatusBadge";
@@ -43,6 +44,15 @@ export default function Dashboard() {
     approved: posts.filter((p) => p.status === "approved").length,
     rejected: posts.filter((p) => p.status === "rejected").length,
   }), [posts]);
+
+  const calendarPosts: CalendarPost[] = useMemo(() => {
+    return posts.map(post => ({
+      id: post.id,
+      content: post.content,
+      status: post.status,
+      scheduledDate: new Date(post.scheduledDate),
+    }));
+  }, [posts]);
 
   const handlePostClick = (postId: string) => {
     setLocation(`/post/${postId}`);
@@ -97,6 +107,8 @@ export default function Dashboard() {
       
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-4xl">
+          <PostCalendar posts={calendarPosts} onPostClick={handlePostClick} />
+          
           {filteredPosts.length === 0 ? (
             <EmptyState />
           ) : (

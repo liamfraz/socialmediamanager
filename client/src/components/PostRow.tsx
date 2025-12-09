@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, ChevronUp, ChevronDown, GripVertical, Images } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Calendar, ChevronUp, ChevronDown, GripVertical, Images, CalendarCheck } from "lucide-react";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
 import ImageCarousel from "./ImageCarousel";
 import { format } from "date-fns";
@@ -34,6 +35,7 @@ export default function PostRow({
   const isFirst = index === 0;
   const isLast = index === totalPosts - 1;
   const hasMultipleImages = post.images && post.images.length > 1;
+  const isApproved = post.status === "approved";
 
   return (
     <Card 
@@ -99,15 +101,28 @@ export default function PostRow({
         >
           {post.content}
         </p>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            <span data-testid={`text-post-date-${post.id}`}>
-              {format(post.scheduledDate, "MMM d, yyyy 'at' h:mm a")}
-            </span>
-          </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {isApproved ? (
+            <Badge 
+              variant="outline" 
+              className="flex items-center gap-1.5 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700"
+              data-testid={`badge-scheduled-date-${post.id}`}
+            >
+              <CalendarCheck className="h-3.5 w-3.5" />
+              <span className="font-medium">
+                {format(post.scheduledDate, "EEE, MMM d 'at' h:mm a")}
+              </span>
+            </Badge>
+          ) : (
+            <div className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              <span data-testid={`text-post-date-${post.id}`}>
+                {format(post.scheduledDate, "MMM d, yyyy 'at' h:mm a")}
+              </span>
+            </div>
+          )}
           {hasMultipleImages && (
-            <span className="text-muted-foreground">{post.images!.length} photos</span>
+            <span>{post.images!.length} photos</span>
           )}
         </div>
       </div>

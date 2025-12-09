@@ -106,7 +106,6 @@ export default function PostDetail() {
       <div className="border-b px-6 py-3">
         <Breadcrumb
           items={[
-            { label: "Post Queue", href: "/" },
             { label: "Review Post" },
           ]}
         />

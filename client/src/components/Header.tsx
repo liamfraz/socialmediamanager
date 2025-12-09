@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Settings, LogOut, User } from "lucide-react";
-import flowtechLogo from "@assets/Screenshot_2025-11-29_at_1.38.06_pm_1765196594766.png";
+import flowtechLogo from "@assets/Screenshot_2025-11-29_at_1.38.06_pm_1765271076550.png";
 import {
   DropdownMenu,
   DropdownMenuContent,

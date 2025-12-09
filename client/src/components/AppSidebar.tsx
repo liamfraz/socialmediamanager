@@ -16,7 +16,7 @@ import {
 const mainItems = [
   {
     title: "Home",
-    url: "/",
+    url: "/dashboard",
     icon: Home,
   },
   {

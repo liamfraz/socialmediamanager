@@ -76,7 +76,7 @@ export default function PostDetail() {
       description: "The post has been approved and scheduled for publishing.",
     });
     setApproveModalOpen(false);
-    setLocation("/");
+    setLocation("/dashboard");
   };
 
   const handleReject = async () => {
@@ -88,7 +88,7 @@ export default function PostDetail() {
       variant: "destructive",
     });
     setRejectModalOpen(false);
-    setLocation("/");
+    setLocation("/dashboard");
   };
 
   return (
@@ -118,7 +118,7 @@ export default function PostDetail() {
       <ActionPanel
         onApprove={() => setApproveModalOpen(true)}
         onReject={() => setRejectModalOpen(true)}
-        onBack={() => setLocation("/")}
+        onBack={() => setLocation("/dashboard")}
       />
 
       <ConfirmationModal

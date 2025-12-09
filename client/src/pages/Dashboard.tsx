@@ -1,18 +1,18 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import PostRow from "@/components/PostRow";
-import PostCalendar, { type CalendarPost } from "@/components/PostCalendar";
+import { DndContext, closestCenter, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import DraggablePostCard from "@/components/DraggablePostCard";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
 import { CheckCircle2 } from "lucide-react";
-import type { PostStatus } from "@/components/StatusBadge";
 import type { Post } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { addDays, setHours, setMinutes } from "date-fns";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
+  const [localPosts, setLocalPosts] = useState<Post[]>([]);
 
   useEffect(() => {
     apiRequest("POST", "/api/seed").catch(() => {});
@@ -37,50 +37,41 @@ export default function Dashboard() {
       .sort((a, b) => a.order - b.order);
   }, [posts]);
 
-  const getScheduledDateForPosition = (index: number) => {
-    const tomorrow = addDays(new Date(), index + 1);
-    return setMinutes(setHours(tomorrow, 9), 0);
-  };
-
-  const calendarPosts: CalendarPost[] = useMemo(() => {
-    return approvedPosts.map((post, index) => ({
-      id: post.id,
-      content: post.content,
-      status: post.status,
-      scheduledDate: getScheduledDateForPosition(index),
-    }));
+  useEffect(() => {
+    setLocalPosts(approvedPosts);
   }, [approvedPosts]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = localPosts.findIndex((post) => post.id === active.id);
+    const newIndex = localPosts.findIndex((post) => post.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newOrder = arrayMove(localPosts, oldIndex, newIndex);
+    setLocalPosts(newOrder);
+
+    const updates = newOrder.map((post, index) => ({
+      id: post.id,
+      order: index + 1,
+    }));
+
+    reorderMutation.mutate(updates);
+  };
 
   const handlePostClick = (postId: string) => {
     setLocation(`/post/${postId}`);
-  };
-
-  const handleMoveUp = (postId: string) => {
-    const sorted = [...approvedPosts];
-    const index = sorted.findIndex((p) => p.id === postId);
-    if (index <= 0) return;
-
-    const currentPost = sorted[index];
-    const prevPost = sorted[index - 1];
-    
-    reorderMutation.mutate([
-      { id: currentPost.id, order: prevPost.order },
-      { id: prevPost.id, order: currentPost.order },
-    ]);
-  };
-
-  const handleMoveDown = (postId: string) => {
-    const sorted = [...approvedPosts];
-    const index = sorted.findIndex((p) => p.id === postId);
-    if (index < 0 || index >= sorted.length - 1) return;
-
-    const currentPost = sorted[index];
-    const nextPost = sorted[index + 1];
-    
-    reorderMutation.mutate([
-      { id: currentPost.id, order: nextPost.order },
-      { id: nextPost.id, order: currentPost.order },
-    ]);
   };
 
   if (isLoading) {
@@ -93,41 +84,42 @@ export default function Dashboard() {
 
   return (
     <div className="p-6">
-      <div className="mx-auto max-w-4xl space-y-6">
-        <PostCalendar posts={calendarPosts} onPostClick={handlePostClick} />
-
+      <div className="mx-auto max-w-2xl space-y-6">
         <div>
           <div className="mb-4 flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             <h2 className="text-lg font-semibold">Ready to Post</h2>
-            <Badge variant="outline" className="ml-2">{approvedPosts.length}</Badge>
+            <Badge variant="outline" className="ml-2">{localPosts.length}</Badge>
           </div>
           
-          {approvedPosts.length === 0 ? (
+          {localPosts.length === 0 ? (
             <Card className="p-8 text-center">
               <p className="text-muted-foreground">No approved posts yet. Review pending posts to add them here.</p>
             </Card>
           ) : (
-            <div className="space-y-3">
-              {approvedPosts.map((post, index) => (
-                <PostRow
-                  key={post.id}
-                  post={{
-                    id: post.id,
-                    content: post.content,
-                    status: post.status as PostStatus,
-                    scheduledDate: getScheduledDateForPosition(index),
-                    images: post.images ?? undefined,
-                    order: post.order,
-                  }}
-                  index={index}
-                  totalPosts={approvedPosts.length}
-                  onClick={() => handlePostClick(post.id)}
-                  onMoveUp={() => handleMoveUp(post.id)}
-                  onMoveDown={() => handleMoveDown(post.id)}
-                />
-              ))}
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={localPosts.map((post) => post.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3" data-testid="post-list">
+                  {localPosts.map((post, index) => (
+                    <DraggablePostCard
+                      key={post.id}
+                      id={post.id}
+                      content={post.content}
+                      images={post.images ?? undefined}
+                      order={index + 1}
+                      onClick={() => handlePostClick(post.id)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
         </div>
       </div>

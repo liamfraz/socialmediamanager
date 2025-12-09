@@ -4,8 +4,8 @@ import PostRow from "@/components/PostRow";
 import PostCalendar, { type CalendarPost } from "@/components/PostCalendar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useLocation, Link } from "wouter";
-import { CheckCircle2, Send } from "lucide-react";
+import { useLocation } from "wouter";
+import { CheckCircle2 } from "lucide-react";
 import type { PostStatus } from "@/components/StatusBadge";
 import type { Post } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -33,12 +33,6 @@ export default function Dashboard() {
   const approvedPosts = useMemo(() => {
     return posts
       .filter((post) => post.status === "approved")
-      .sort((a, b) => a.order - b.order);
-  }, [posts]);
-
-  const postedPosts = useMemo(() => {
-    return posts
-      .filter((post) => post.status === "posted")
       .sort((a, b) => a.order - b.order);
   }, [posts]);
 
@@ -130,23 +124,6 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-
-        <Link href="/posted">
-          <Card className="flex items-center justify-between p-4 hover-elevate cursor-pointer" data-testid="link-posted-posts">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950/50">
-                <Send className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <h2 className="font-medium">Posted</h2>
-                <p className="text-sm text-muted-foreground">View published posts</p>
-              </div>
-            </div>
-            <Badge variant="secondary" className="flex items-center gap-1.5">
-              {postedPosts.length} posted
-            </Badge>
-          </Card>
-        </Link>
       </div>
     </div>
   );

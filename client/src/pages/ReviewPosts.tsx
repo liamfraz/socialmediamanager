@@ -1,16 +1,20 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
-import FilterBar from "@/components/FilterBar";
 import PostRow from "@/components/PostRow";
 import EmptyState from "@/components/EmptyState";
 import { useLocation } from "wouter";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import type { PostStatus } from "@/components/StatusBadge";
 import type { Post } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
+type FilterType = "pending" | "approved" | "rejected";
+
 export default function ReviewPosts() {
   const [, setLocation] = useLocation();
+  const [activeFilter, setActiveFilter] = useState<FilterType>("pending");
 
   useEffect(() => {
     apiRequest("POST", "/api/seed").catch(() => {});
@@ -20,14 +24,13 @@ export default function ReviewPosts() {
     queryKey: ["/api/posts"],
   });
 
-  const pendingPosts = useMemo(() => {
+  const filteredPosts = useMemo(() => {
     return posts
-      .filter((post) => post.status === "pending")
+      .filter((post) => post.status === activeFilter)
       .sort((a, b) => a.order - b.order);
-  }, [posts]);
+  }, [posts, activeFilter]);
 
   const counts = useMemo(() => ({
-    all: posts.length,
     pending: posts.filter((p) => p.status === "pending").length,
     approved: posts.filter((p) => p.status === "approved").length,
     rejected: posts.filter((p) => p.status === "rejected").length,
@@ -53,19 +56,31 @@ export default function ReviewPosts() {
       <Header title="Review Posts" />
       
       <div className="border-b px-6 py-3">
-        <p className="text-sm text-muted-foreground">
-          Review and approve posts before they appear on your schedule. 
-          <span className="ml-2 font-medium text-foreground">{counts.pending} posts pending review</span>
-        </p>
+        <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as FilterType)}>
+          <TabsList>
+            <TabsTrigger value="pending" className="gap-2" data-testid="tab-pending">
+              Pending
+              <Badge variant="secondary" className="ml-1">{counts.pending}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="approved" className="gap-2" data-testid="tab-approved">
+              Approved
+              <Badge variant="secondary" className="ml-1">{counts.approved}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="rejected" className="gap-2" data-testid="tab-rejected">
+              Rejected
+              <Badge variant="secondary" className="ml-1">{counts.rejected}</Badge>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
       
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-4xl">
-          {pendingPosts.length === 0 ? (
+          {filteredPosts.length === 0 ? (
             <EmptyState />
           ) : (
             <div className="space-y-3">
-              {pendingPosts.map((post, index) => (
+              {filteredPosts.map((post, index) => (
                 <PostRow
                   key={post.id}
                   post={{
@@ -77,7 +92,7 @@ export default function ReviewPosts() {
                     order: post.order,
                   }}
                   index={index}
-                  totalPosts={pendingPosts.length}
+                  totalPosts={filteredPosts.length}
                   onClick={() => handlePostClick(post.id)}
                 />
               ))}

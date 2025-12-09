@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
-import { Check, X, Clock, FileEdit } from "lucide-react";
+import { Check, X, Clock, FileEdit, Send } from "lucide-react";
 
-export type PostStatus = "pending" | "approved" | "rejected" | "draft";
+export type PostStatus = "pending" | "approved" | "rejected" | "draft" | "posted";
 
 interface StatusBadgeProps {
   status: PostStatus;
@@ -27,6 +27,11 @@ const statusConfig: Record<PostStatus, { label: string; className: string; icon:
     label: "Draft",
     className: "bg-primary/10 text-primary border-primary/20",
     icon: FileEdit,
+  },
+  posted: {
+    label: "Posted",
+    className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    icon: Send,
   },
 };
 

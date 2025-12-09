@@ -18,7 +18,7 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
 // Post status enum values
-export const postStatusValues = ["pending", "approved", "rejected", "draft"] as const;
+export const postStatusValues = ["pending", "approved", "rejected", "draft", "posted"] as const;
 export type PostStatus = typeof postStatusValues[number];
 export const postStatusEnum = z.enum(postStatusValues);
 

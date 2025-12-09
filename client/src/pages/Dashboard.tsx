@@ -3,12 +3,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import PostRow from "@/components/PostRow";
 import PostCalendar, { type CalendarPost } from "@/components/PostCalendar";
-import EmptyState from "@/components/EmptyState";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useLocation, Link } from "wouter";
-import { ClipboardList, CheckCircle2, Calendar } from "lucide-react";
+import { ClipboardList, CheckCircle2, Send } from "lucide-react";
 import type { PostStatus } from "@/components/StatusBadge";
 import type { Post } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -36,6 +34,12 @@ export default function Dashboard() {
   const approvedPosts = useMemo(() => {
     return posts
       .filter((post) => post.status === "approved")
+      .sort((a, b) => a.order - b.order);
+  }, [posts]);
+
+  const postedPosts = useMemo(() => {
+    return posts
+      .filter((post) => post.status === "posted")
       .sort((a, b) => a.order - b.order);
   }, [posts]);
 
@@ -149,6 +153,39 @@ export default function Dashboard() {
                     onClick={() => handlePostClick(post.id)}
                     onMoveUp={() => handleMoveUp(post.id)}
                     onMoveDown={() => handleMoveDown(post.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="mb-4 flex items-center gap-2">
+              <Send className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <h2 className="text-lg font-semibold">Posted</h2>
+              <Badge variant="outline" className="ml-2">{postedPosts.length}</Badge>
+            </div>
+            
+            {postedPosts.length === 0 ? (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">No posts have been published yet.</p>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {postedPosts.map((post, index) => (
+                  <PostRow
+                    key={post.id}
+                    post={{
+                      id: post.id,
+                      content: post.content,
+                      status: post.status as PostStatus,
+                      scheduledDate: new Date(post.scheduledDate),
+                      images: post.images ?? undefined,
+                      order: post.order,
+                    }}
+                    index={index}
+                    totalPosts={postedPosts.length}
+                    onClick={() => handlePostClick(post.id)}
                   />
                 ))}
               </div>

@@ -6,13 +6,13 @@ import { Calendar, Clock, Plus, X } from "lucide-react";
 import { SiInstagram } from "react-icons/si";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
 import ImageCarousel from "./ImageCarousel";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 
 interface PostDetailCardProps {
   id: string;
   content: string;
   status: PostStatus;
-  scheduledDate: Date;
+  rowIndex?: number;
   images?: string[];
   onContentChange?: (content: string) => void;
   onImagesChange?: (images: string[]) => void;
@@ -20,11 +20,18 @@ interface PostDetailCardProps {
 
 const INSTAGRAM_LIMIT = 2200;
 
+function getScheduledDate(rowIndex: number): Date {
+  const today = new Date();
+  const scheduledDate = addDays(today, rowIndex + 1);
+  scheduledDate.setHours(17, 0, 0, 0);
+  return scheduledDate;
+}
+
 export default function PostDetailCard({
   id,
   content,
   status,
-  scheduledDate,
+  rowIndex = 0,
   images = [],
   onContentChange,
   onImagesChange,
@@ -33,6 +40,7 @@ export default function PostDetailCard({
   const [currentImages, setCurrentImages] = useState<string[]>(images);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const scheduledDate = getScheduledDate(rowIndex);
   const remaining = INSTAGRAM_LIMIT - editedContent.length;
   const isNearLimit = remaining < INSTAGRAM_LIMIT * 0.1;
   const isOverLimit = remaining < 0;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Breadcrumb from "@/components/Breadcrumb";
@@ -17,12 +17,28 @@ export default function PostDetail() {
   
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [sendToReviewModalOpen, setSendToReviewModalOpen] = useState(false);
   const [editedContent, setEditedContent] = useState<string | null>(null);
   const [editedImages, setEditedImages] = useState<string[] | null>(null);
 
-  const { data: post, isLoading } = useQuery<Post>({
-    queryKey: ["/api/posts", params.id],
+  const { data: posts = [] } = useQuery<Post[]>({
+    queryKey: ["/api/posts"],
   });
+
+  const post = useMemo(() => {
+    return posts.find((p) => p.id === params.id);
+  }, [posts, params.id]);
+
+  const approvedPosts = useMemo(() => {
+    return posts
+      .filter((p) => p.status === "approved")
+      .sort((a, b) => a.order - b.order);
+  }, [posts]);
+
+  const rowIndex = useMemo(() => {
+    if (!post || post.status !== "approved") return 0;
+    return approvedPosts.findIndex((p) => p.id === post.id);
+  }, [post, approvedPosts]);
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -42,21 +58,10 @@ export default function PostDetail() {
     },
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <div className="text-muted-foreground" data-testid="loading-indicator">Loading post...</div>
-      </div>
-    );
-  }
-
   if (!post) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <div className="text-center">
-          <h2 className="mb-2 text-xl font-semibold" data-testid="text-not-found">Post not found</h2>
-          <p className="text-muted-foreground">The post you're looking for doesn't exist.</p>
-        </div>
+        <div className="text-muted-foreground" data-testid="loading-indicator">Loading post...</div>
       </div>
     );
   }
@@ -91,6 +96,24 @@ export default function PostDetail() {
     setLocation("/dashboard");
   };
 
+  const handleSendToReview = async () => {
+    if (editedContent !== null || editedImages !== null) {
+      const data: { content?: string; images?: string[] } = {};
+      if (editedContent !== null) data.content = editedContent;
+      if (editedImages !== null) data.images = editedImages;
+      await updatePostMutation.mutateAsync({ id: post.id, data });
+    }
+
+    await updateStatusMutation.mutateAsync({ id: post.id, status: "pending" });
+    
+    toast({
+      title: "Sent to Review",
+      description: "The post has been sent back to the review queue.",
+    });
+    setSendToReviewModalOpen(false);
+    setLocation("/review");
+  };
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="border-b px-6 py-3">
@@ -107,7 +130,7 @@ export default function PostDetail() {
             id={post.id}
             content={editedContent ?? post.content}
             status={post.status as PostStatus}
-            scheduledDate={new Date(post.scheduledDate)}
+            rowIndex={rowIndex}
             images={editedImages ?? post.images ?? undefined}
             onContentChange={setEditedContent}
             onImagesChange={setEditedImages}
@@ -116,8 +139,10 @@ export default function PostDetail() {
       </main>
 
       <ActionPanel
+        status={post.status as "pending" | "approved" | "rejected" | "draft"}
         onApprove={() => setApproveModalOpen(true)}
         onReject={() => setRejectModalOpen(true)}
+        onSendToReview={() => setSendToReviewModalOpen(true)}
         onBack={() => setLocation("/dashboard")}
       />
 
@@ -138,6 +163,15 @@ export default function PostDetail() {
         confirmLabel="Reject Post"
         variant="destructive"
         onConfirm={handleReject}
+      />
+
+      <ConfirmationModal
+        open={sendToReviewModalOpen}
+        onOpenChange={setSendToReviewModalOpen}
+        title="Send to Review"
+        description="This post will be sent back to the review queue. Are you sure?"
+        confirmLabel="Yes, Send to Review"
+        onConfirm={handleSendToReview}
       />
     </div>
   );

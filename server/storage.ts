@@ -1,6 +1,6 @@
 import { users, posts, type User, type InsertUser, type Post, type InsertPost } from "@shared/schema";
 import { db } from "./db";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and, max } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -53,6 +53,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updatePostStatus(id: string, status: string): Promise<Post | undefined> {
+    // When approving a post, set its order to be at the bottom of approved posts
+    if (status === "approved") {
+      const [result] = await db
+        .select({ maxOrder: max(posts.order) })
+        .from(posts)
+        .where(eq(posts.status, "approved"));
+      
+      const newOrder = (result?.maxOrder ?? 0) + 1;
+      const [post] = await db
+        .update(posts)
+        .set({ status, order: newOrder })
+        .where(eq(posts.id, id))
+        .returning();
+      return post || undefined;
+    }
+    
     const [post] = await db.update(posts).set({ status }).where(eq(posts.id, id)).returning();
     return post || undefined;
   }

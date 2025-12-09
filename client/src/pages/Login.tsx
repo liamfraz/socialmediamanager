@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import flowtechLogo from "@assets/Screenshot_2025-11-29_at_1.38.06_pm_1765271076550.png";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -26,9 +27,20 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-sm">
+    <div className="relative flex min-h-screen items-center justify-center bg-background p-4 overflow-hidden">
+      <img 
+        src={flowtechLogo} 
+        alt="" 
+        className="absolute w-[800px] h-[800px] object-contain opacity-[0.03] pointer-events-none select-none"
+        aria-hidden="true"
+      />
+      <Card className="relative z-10 w-full max-w-sm">
         <CardHeader className="space-y-1 text-center">
+          <img 
+            src={flowtechLogo} 
+            alt="Flowtech Advisory" 
+            className="mx-auto h-16 w-16 object-contain mb-2"
+          />
           <CardTitle className="text-2xl" data-testid="text-login-title">
             Flowtech Advisory
           </CardTitle>

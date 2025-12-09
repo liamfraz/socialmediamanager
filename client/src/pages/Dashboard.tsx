@@ -1,20 +1,21 @@
-import { useState, useMemo, useEffect } from "react";
+import { useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Header from "@/components/Header";
-import FilterBar from "@/components/FilterBar";
 import PostRow from "@/components/PostRow";
 import PostCalendar, { type CalendarPost } from "@/components/PostCalendar";
 import EmptyState from "@/components/EmptyState";
-import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useLocation, Link } from "wouter";
+import { ClipboardList, CheckCircle2, Calendar } from "lucide-react";
 import type { PostStatus } from "@/components/StatusBadge";
 import type { Post } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
-  const [statusFilter, setStatusFilter] = useState<PostStatus | "all">("all");
 
-  // Seed database on first load if empty
   useEffect(() => {
     apiRequest("POST", "/api/seed").catch(() => {});
   }, []);
@@ -32,34 +33,31 @@ export default function Dashboard() {
     },
   });
 
-  const filteredPosts = useMemo(() => {
+  const approvedPosts = useMemo(() => {
     return posts
-      .filter((post) => statusFilter === "all" || post.status === statusFilter)
+      .filter((post) => post.status === "approved")
       .sort((a, b) => a.order - b.order);
-  }, [posts, statusFilter]);
+  }, [posts]);
 
-  const counts = useMemo(() => ({
-    all: posts.length,
-    pending: posts.filter((p) => p.status === "pending").length,
-    approved: posts.filter((p) => p.status === "approved").length,
-    rejected: posts.filter((p) => p.status === "rejected").length,
-  }), [posts]);
+  const pendingCount = useMemo(() => {
+    return posts.filter((p) => p.status === "pending").length;
+  }, [posts]);
 
   const calendarPosts: CalendarPost[] = useMemo(() => {
-    return posts.map(post => ({
+    return approvedPosts.map(post => ({
       id: post.id,
       content: post.content,
       status: post.status,
       scheduledDate: new Date(post.scheduledDate),
     }));
-  }, [posts]);
+  }, [approvedPosts]);
 
   const handlePostClick = (postId: string) => {
     setLocation(`/post/${postId}`);
   };
 
   const handleMoveUp = (postId: string) => {
-    const sorted = [...posts].sort((a, b) => a.order - b.order);
+    const sorted = [...approvedPosts].sort((a, b) => a.order - b.order);
     const index = sorted.findIndex((p) => p.id === postId);
     if (index <= 0) return;
 
@@ -73,7 +71,7 @@ export default function Dashboard() {
   };
 
   const handleMoveDown = (postId: string) => {
-    const sorted = [...posts].sort((a, b) => a.order - b.order);
+    const sorted = [...approvedPosts].sort((a, b) => a.order - b.order);
     const index = sorted.findIndex((p) => p.id === postId);
     if (index < 0 || index >= sorted.length - 1) return;
 
@@ -89,9 +87,9 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <Header title="Flowtech Post Management" />
+        <Header title="Home" />
         <main className="flex flex-1 items-center justify-center">
-          <div className="text-muted-foreground" data-testid="loading-indicator">Loading posts...</div>
+          <div className="text-muted-foreground" data-testid="loading-indicator">Loading...</div>
         </main>
       </div>
     );
@@ -99,40 +97,63 @@ export default function Dashboard() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Header title="Flowtech Post Management" />
-      <FilterBar
-        onStatusChange={setStatusFilter}
-        counts={counts}
-      />
+      <Header title="Home" />
       
       <main className="flex-1 p-6">
-        <div className="mx-auto max-w-4xl">
+        <div className="mx-auto max-w-4xl space-y-6">
+          <Link href="/review">
+            <Card className="flex items-center justify-between p-4 hover-elevate cursor-pointer" data-testid="link-review-posts">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-950/50">
+                  <ClipboardList className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="font-medium">Review Posts</h2>
+                  <p className="text-sm text-muted-foreground">Review and approve pending posts</p>
+                </div>
+              </div>
+              <Badge variant="secondary" className="flex items-center gap-1.5">
+                {pendingCount} pending
+              </Badge>
+            </Card>
+          </Link>
+
           <PostCalendar posts={calendarPosts} onPostClick={handlePostClick} />
-          
-          {filteredPosts.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="space-y-3">
-              {filteredPosts.map((post, index) => (
-                <PostRow
-                  key={post.id}
-                  post={{
-                    id: post.id,
-                    content: post.content,
-                    status: post.status as PostStatus,
-                    scheduledDate: new Date(post.scheduledDate),
-                    images: post.images ?? undefined,
-                    order: post.order,
-                  }}
-                  index={index}
-                  totalPosts={filteredPosts.length}
-                  onClick={() => handlePostClick(post.id)}
-                  onMoveUp={() => handleMoveUp(post.id)}
-                  onMoveDown={() => handleMoveDown(post.id)}
-                />
-              ))}
+
+          <div>
+            <div className="mb-4 flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              <h2 className="text-lg font-semibold">Ready to Post</h2>
+              <Badge variant="outline" className="ml-2">{approvedPosts.length}</Badge>
             </div>
-          )}
+            
+            {approvedPosts.length === 0 ? (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">No approved posts yet. Review pending posts to add them here.</p>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {approvedPosts.map((post, index) => (
+                  <PostRow
+                    key={post.id}
+                    post={{
+                      id: post.id,
+                      content: post.content,
+                      status: post.status as PostStatus,
+                      scheduledDate: new Date(post.scheduledDate),
+                      images: post.images ?? undefined,
+                      order: post.order,
+                    }}
+                    index={index}
+                    totalPosts={approvedPosts.length}
+                    onClick={() => handlePostClick(post.id)}
+                    onMoveUp={() => handleMoveUp(post.id)}
+                    onMoveDown={() => handleMoveDown(post.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>

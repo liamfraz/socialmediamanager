@@ -69,5 +69,10 @@ export const insertTaggedPhotoSchema = createInsertSchema(taggedPhotos).omit({
   id: true,
 });
 
+export const updateTaggedPhotoSchema = createInsertSchema(taggedPhotos).omit({
+  id: true,
+}).partial();
+
 export type InsertTaggedPhoto = z.infer<typeof insertTaggedPhotoSchema>;
+export type UpdateTaggedPhoto = z.infer<typeof updateTaggedPhotoSchema>;
 export type TaggedPhoto = typeof taggedPhotos.$inferSelect;

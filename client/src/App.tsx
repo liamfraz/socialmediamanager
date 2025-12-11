@@ -12,6 +12,7 @@ import ReviewPosts from "@/pages/ReviewPosts";
 import PostedPosts from "@/pages/PostedPosts";
 import PostDetail from "@/pages/PostDetail";
 import Account from "@/pages/Account";
+import TaggedPhotos from "@/pages/TaggedPhotos";
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const style = {
@@ -44,6 +45,7 @@ function AuthenticatedRoutes() {
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/review" component={ReviewPosts} />
         <Route path="/posted" component={PostedPosts} />
+        <Route path="/tagged-photos" component={TaggedPhotos} />
         <Route path="/post/:id" component={PostDetail} />
         <Route path="/account" component={Account} />
         <Route component={NotFound} />

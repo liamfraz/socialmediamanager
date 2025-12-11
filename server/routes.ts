@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertPostSchema, updatePostSchema, postStatusEnum, reorderSchema, insertTaggedPhotoSchema } from "@shared/schema";
+import { insertPostSchema, updatePostSchema, postStatusEnum, reorderSchema, insertTaggedPhotoSchema, updateTaggedPhotoSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(
@@ -256,7 +256,7 @@ export async function registerRoutes(
 
   app.put("/api/tagged-photos/:id", async (req, res) => {
     try {
-      const validatedData = insertTaggedPhotoSchema.partial().parse(req.body);
+      const validatedData = updateTaggedPhotoSchema.parse(req.body);
       const photo = await storage.updateTaggedPhoto(req.params.id, validatedData);
       if (!photo) {
         return res.status(404).json({ error: "Photo not found" });

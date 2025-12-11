@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertPostSchema, updatePostSchema, postStatusEnum, reorderSchema } from "@shared/schema";
+import { insertPostSchema, updatePostSchema, postStatusEnum, reorderSchema, insertTaggedPhotoSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(
@@ -213,6 +213,74 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error seeding database:", error);
       res.status(500).json({ error: "Failed to seed database" });
+    }
+  });
+
+  // Tagged Photos routes
+  app.get("/api/tagged-photos", async (_req, res) => {
+    try {
+      const photos = await storage.getAllTaggedPhotos();
+      res.json(photos);
+    } catch (error) {
+      console.error("Error fetching tagged photos:", error);
+      res.status(500).json({ error: "Failed to fetch tagged photos" });
+    }
+  });
+
+  app.get("/api/tagged-photos/:id", async (req, res) => {
+    try {
+      const photo = await storage.getTaggedPhoto(req.params.id);
+      if (!photo) {
+        return res.status(404).json({ error: "Photo not found" });
+      }
+      res.json(photo);
+    } catch (error) {
+      console.error("Error fetching photo:", error);
+      res.status(500).json({ error: "Failed to fetch photo" });
+    }
+  });
+
+  app.post("/api/tagged-photos", async (req, res) => {
+    try {
+      const validatedData = insertTaggedPhotoSchema.parse(req.body);
+      const photo = await storage.createTaggedPhoto(validatedData);
+      res.status(201).json(photo);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating photo:", error);
+      res.status(500).json({ error: "Failed to create photo" });
+    }
+  });
+
+  app.put("/api/tagged-photos/:id", async (req, res) => {
+    try {
+      const validatedData = insertTaggedPhotoSchema.partial().parse(req.body);
+      const photo = await storage.updateTaggedPhoto(req.params.id, validatedData);
+      if (!photo) {
+        return res.status(404).json({ error: "Photo not found" });
+      }
+      res.json(photo);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating photo:", error);
+      res.status(500).json({ error: "Failed to update photo" });
+    }
+  });
+
+  app.delete("/api/tagged-photos/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteTaggedPhoto(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Photo not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting photo:", error);
+      res.status(500).json({ error: "Failed to delete photo" });
     }
   });
 

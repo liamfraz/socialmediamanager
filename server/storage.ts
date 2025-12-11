@@ -1,6 +1,6 @@
-import { users, posts, type User, type InsertUser, type Post, type InsertPost } from "@shared/schema";
+import { users, posts, taggedPhotos, type User, type InsertUser, type Post, type InsertPost, type TaggedPhoto, type InsertTaggedPhoto } from "@shared/schema";
 import { db } from "./db";
-import { eq, asc, and, max } from "drizzle-orm";
+import { eq, asc, and, max, desc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -15,6 +15,13 @@ export interface IStorage {
   updatePostStatus(id: string, status: string): Promise<Post | undefined>;
   reorderPosts(updates: { id: string; order: number }[]): Promise<void>;
   deletePost(id: string): Promise<boolean>;
+
+  // Tagged Photos operations
+  getAllTaggedPhotos(): Promise<TaggedPhoto[]>;
+  getTaggedPhoto(id: string): Promise<TaggedPhoto | undefined>;
+  createTaggedPhoto(photo: InsertTaggedPhoto): Promise<TaggedPhoto>;
+  updateTaggedPhoto(id: string, data: Partial<InsertTaggedPhoto>): Promise<TaggedPhoto | undefined>;
+  deleteTaggedPhoto(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -81,6 +88,31 @@ export class DatabaseStorage implements IStorage {
 
   async deletePost(id: string): Promise<boolean> {
     const result = await db.delete(posts).where(eq(posts.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Tagged Photos operations
+  async getAllTaggedPhotos(): Promise<TaggedPhoto[]> {
+    return db.select().from(taggedPhotos);
+  }
+
+  async getTaggedPhoto(id: string): Promise<TaggedPhoto | undefined> {
+    const [photo] = await db.select().from(taggedPhotos).where(eq(taggedPhotos.id, id));
+    return photo || undefined;
+  }
+
+  async createTaggedPhoto(insertPhoto: InsertTaggedPhoto): Promise<TaggedPhoto> {
+    const [photo] = await db.insert(taggedPhotos).values(insertPhoto).returning();
+    return photo;
+  }
+
+  async updateTaggedPhoto(id: string, data: Partial<InsertTaggedPhoto>): Promise<TaggedPhoto | undefined> {
+    const [photo] = await db.update(taggedPhotos).set(data).where(eq(taggedPhotos.id, id)).returning();
+    return photo || undefined;
+  }
+
+  async deleteTaggedPhoto(id: string): Promise<boolean> {
+    const result = await db.delete(taggedPhotos).where(eq(taggedPhotos.id, id)).returning();
     return result.length > 0;
   }
 }

@@ -216,6 +216,92 @@ export async function registerRoutes(
     }
   });
 
+  // Webhook endpoint for n8n to create posts
+  app.post("/api/webhook/posts", async (req, res) => {
+    try {
+      console.log("Webhook received:", JSON.stringify(req.body, null, 2));
+      
+      // Handle both single object and array format from n8n
+      const data = Array.isArray(req.body) ? req.body[0] : req.body;
+      
+      if (!data) {
+        return res.status(400).json({ error: "No data provided" });
+      }
+      
+      const { status, caption, Status, Caption } = data;
+      
+      // Use either camelCase or original casing from n8n
+      const postStatus = status || Status;
+      const postCaption = caption || Caption;
+      
+      if (!postCaption) {
+        return res.status(400).json({ error: "Caption is required" });
+      }
+      
+      // Collect all images from Image 1 through Image 10
+      const images: string[] = [];
+      for (let i = 1; i <= 10; i++) {
+        const imageKey = `Image ${i}`;
+        const imageUrl = data[imageKey];
+        if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
+          images.push(imageUrl.trim());
+        }
+      }
+      
+      // Also check if images array is provided directly
+      if (data.images && Array.isArray(data.images)) {
+        for (const img of data.images) {
+          if (img && typeof img === 'string' && img.trim() !== '') {
+            images.push(img.trim());
+          }
+        }
+      }
+      
+      // Map status from n8n to our status enum
+      // n8n sends "Review" which maps to "pending"
+      let mappedStatus: "pending" | "approved" | "rejected" | "draft" = "pending";
+      if (postStatus) {
+        const statusLower = postStatus.toLowerCase();
+        if (statusLower === "review" || statusLower === "pending") {
+          mappedStatus = "pending";
+        } else if (statusLower === "approved" || statusLower === "approve") {
+          mappedStatus = "approved";
+        } else if (statusLower === "rejected" || statusLower === "reject") {
+          mappedStatus = "rejected";
+        } else if (statusLower === "draft") {
+          mappedStatus = "draft";
+        }
+      }
+      
+      // Get the max order for pending posts to add new post at the end
+      const allPosts = await storage.getAllPosts();
+      const pendingPosts = allPosts.filter(p => p.status === "pending");
+      const maxOrder = pendingPosts.length > 0 
+        ? Math.max(...pendingPosts.map(p => p.order || 0)) 
+        : 0;
+      
+      // Calculate scheduled date based on position (tomorrow + order at 5:00 PM)
+      const scheduledDate = new Date();
+      scheduledDate.setDate(scheduledDate.getDate() + 1 + maxOrder);
+      scheduledDate.setHours(17, 0, 0, 0);
+      
+      // Create the post
+      const post = await storage.createPost({
+        content: postCaption,
+        status: mappedStatus,
+        images: images.length > 0 ? images : null,
+        order: maxOrder + 1,
+        scheduledDate,
+      });
+      
+      console.log("Post created via webhook:", post.id);
+      res.status(201).json({ success: true, postId: post.id, message: "Post created successfully" });
+    } catch (error) {
+      console.error("Webhook error:", error);
+      res.status(500).json({ error: "Failed to process webhook" });
+    }
+  });
+
   // Tagged Photos routes
   app.get("/api/tagged-photos", async (_req, res) => {
     try {

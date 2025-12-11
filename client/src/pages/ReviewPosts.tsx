@@ -15,8 +15,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type FilterType = "pending" | "approved" | "rejected";
 
-const N8N_WEBHOOK_URL = "https://liamfraz3.app.n8n.cloud/webhook/0d25b57d-4af4-4526-8bfe-2d89247c713f";
-
 export default function ReviewPosts() {
   const [, setLocation] = useLocation();
   const [activeFilter, setActiveFilter] = useState<FilterType>("pending");
@@ -31,10 +29,7 @@ export default function ReviewPosts() {
   const handleGeneratePosts = async () => {
     setIsGenerating(true);
     try {
-      const response = await fetch(N8N_WEBHOOK_URL, {
-        method: "GET",
-        mode: "no-cors",
-      });
+      await apiRequest("POST", "/api/trigger-generate");
       
       toast({
         title: "Generation triggered",

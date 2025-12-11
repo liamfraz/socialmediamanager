@@ -216,6 +216,23 @@ export async function registerRoutes(
     }
   });
 
+  // Trigger n8n webhook to generate posts
+  app.post("/api/trigger-generate", async (_req, res) => {
+    try {
+      const n8nWebhookUrl = "https://liamfraz3.app.n8n.cloud/webhook/0d25b57d-4af4-4526-8bfe-2d89247c713f";
+      
+      const response = await fetch(n8nWebhookUrl, {
+        method: "GET",
+      });
+      
+      console.log("n8n webhook triggered, status:", response.status);
+      res.json({ success: true, message: "Generation triggered" });
+    } catch (error) {
+      console.error("Error triggering n8n webhook:", error);
+      res.status(500).json({ error: "Failed to trigger generation" });
+    }
+  });
+
   // Webhook endpoint for n8n to create posts
   app.post("/api/webhook/posts", async (req, res) => {
     try {

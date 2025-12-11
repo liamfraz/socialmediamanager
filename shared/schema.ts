@@ -55,3 +55,19 @@ export const reorderSchema = z.object({
 
 export type InsertPost = z.infer<typeof insertPostSchema>;
 export type Post = typeof posts.$inferSelect;
+
+// Tagged Photos table
+export const taggedPhotos = pgTable("tagged_photos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  photoId: text("photo_id").notNull(),
+  photoUrl: text("photo_url").notNull(),
+  description: text("description"),
+  tags: text("tags").array(),
+});
+
+export const insertTaggedPhotoSchema = createInsertSchema(taggedPhotos).omit({
+  id: true,
+});
+
+export type InsertTaggedPhoto = z.infer<typeof insertTaggedPhotoSchema>;
+export type TaggedPhoto = typeof taggedPhotos.$inferSelect;

@@ -7,19 +7,54 @@ import EmptyState from "@/components/EmptyState";
 import { useLocation } from "wouter";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Sparkles, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import type { Post } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type FilterType = "pending" | "approved" | "rejected";
 
+const N8N_WEBHOOK_URL = "https://liamfraz3.app.n8n.cloud/webhook-test/62733116-e6f8-4bb1-be7d-591144119456";
+
 export default function ReviewPosts() {
   const [, setLocation] = useLocation();
   const [activeFilter, setActiveFilter] = useState<FilterType>("pending");
   const [localPosts, setLocalPosts] = useState<Post[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     apiRequest("POST", "/api/seed").catch(() => {});
   }, []);
+
+  const handleGeneratePosts = async () => {
+    setIsGenerating(true);
+    try {
+      const response = await fetch(N8N_WEBHOOK_URL, {
+        method: "GET",
+        mode: "no-cors",
+      });
+      
+      toast({
+        title: "Generation triggered",
+        description: "Posts are being generated. They will appear shortly.",
+      });
+      
+      // Refresh posts after a short delay to give n8n time to process
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
+      }, 3000);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to trigger post generation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const { data: posts = [], isLoading } = useQuery<Post[]>({
     queryKey: ["/api/posts"],
@@ -93,7 +128,7 @@ export default function ReviewPosts() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b px-6 py-3">
+      <div className="border-b px-6 py-3 flex items-center justify-between gap-4">
         <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as FilterType)}>
           <TabsList>
             <TabsTrigger value="pending" className="gap-2" data-testid="tab-pending">
@@ -110,6 +145,18 @@ export default function ReviewPosts() {
             </TabsTrigger>
           </TabsList>
         </Tabs>
+        <Button 
+          onClick={handleGeneratePosts} 
+          disabled={isGenerating}
+          data-testid="button-generate-posts"
+        >
+          {isGenerating ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-2 h-4 w-4" />
+          )}
+          Generate Posts
+        </Button>
       </div>
       
       <main className="flex-1 p-6 overflow-auto">

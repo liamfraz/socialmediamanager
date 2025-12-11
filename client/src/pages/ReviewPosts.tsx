@@ -8,6 +8,8 @@ import { useLocation } from "wouter";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Sparkles, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Post } from "@shared/schema";
@@ -20,16 +22,33 @@ export default function ReviewPosts() {
   const [activeFilter, setActiveFilter] = useState<FilterType>("pending");
   const [localPosts, setLocalPosts] = useState<Post[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [postTopic, setPostTopic] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
     apiRequest("POST", "/api/seed").catch(() => {});
   }, []);
 
+  const handleOpenGenerateDialog = () => {
+    setPostTopic("");
+    setShowGenerateDialog(true);
+  };
+
   const handleGeneratePosts = async () => {
+    if (!postTopic.trim()) {
+      toast({
+        title: "Topic required",
+        description: "Please enter what you want the post to be about.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setShowGenerateDialog(false);
     setIsGenerating(true);
     try {
-      await apiRequest("POST", "/api/trigger-generate");
+      await apiRequest("POST", "/api/trigger-generate", { topic: postTopic.trim() });
       
       toast({
         title: "Generation triggered",
@@ -48,6 +67,7 @@ export default function ReviewPosts() {
       });
     } finally {
       setIsGenerating(false);
+      setPostTopic("");
     }
   };
 
@@ -141,7 +161,7 @@ export default function ReviewPosts() {
           </TabsList>
         </Tabs>
         <Button 
-          onClick={handleGeneratePosts} 
+          onClick={handleOpenGenerateDialog} 
           disabled={isGenerating}
           data-testid="button-generate-posts"
         >
@@ -153,6 +173,37 @@ export default function ReviewPosts() {
           Generate Posts
         </Button>
       </div>
+
+      <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate Posts</DialogTitle>
+            <DialogDescription>
+              What do you want the post to be about?
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={postTopic}
+            onChange={(e) => setPostTopic(e.target.value)}
+            placeholder="e.g., Tips for small business owners"
+            data-testid="input-post-topic"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleGeneratePosts();
+              }
+            }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGenerateDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleGeneratePosts} data-testid="button-submit-generate">
+              <Sparkles className="mr-2 h-4 w-4" />
+              Generate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       <main className="flex-1 p-6 overflow-auto">
         <div className="mx-auto max-w-2xl">

@@ -15,7 +15,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type FilterType = "pending" | "approved" | "rejected";
 
-const N8N_WEBHOOK_URL = "https://liamfraz3.app.n8n.cloud/webhook-test/62733116-e6f8-4bb1-be7d-591144119456";
+const N8N_WEBHOOK_URL = "https://liamfraz3.app.n8n.cloud/webhook-test/0d25b57d-4af4-4526-8bfe-2d89247c713f";
 
 export default function ReviewPosts() {
   const [, setLocation] = useLocation();

@@ -39,6 +39,7 @@ export default function TaggedPhotos() {
 
   const { data: photos = [], isLoading } = useQuery<TaggedPhoto[]>({
     queryKey: ["/api/tagged-photos"],
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
   const createMutation = useMutation({

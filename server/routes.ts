@@ -363,6 +363,27 @@ export async function registerRoutes(
         return res.status(400).json({ error: "URL is required" });
       }
       
+      // Extract Google Drive file ID from URL
+      // Formats: https://drive.google.com/file/d/{fileId}/view?usp=drivesdk
+      //          https://drive.google.com/open?id={fileId}
+      let fileId = '';
+      const driveFileMatch = url.match(/\/file\/d\/([^\/]+)/);
+      const driveOpenMatch = url.match(/[?&]id=([^&]+)/);
+      
+      if (driveFileMatch) {
+        fileId = driveFileMatch[1];
+      } else if (driveOpenMatch) {
+        fileId = driveOpenMatch[1];
+      } else {
+        // If no match, use the url as-is (might be a direct link)
+        fileId = url;
+      }
+      
+      // Convert to displayable Google Drive image URL
+      const displayableUrl = fileId.startsWith('http') 
+        ? fileId 
+        : `https://lh3.googleusercontent.com/d/${fileId}=w800-h800`;
+      
       // Parse tags - can be comma-separated string or array
       let parsedTags: string[] = [];
       if (tags) {
@@ -379,7 +400,7 @@ export async function registerRoutes(
       // Create the tagged photo
       const photo = await storage.createTaggedPhoto({
         photoId,
-        photoUrl: url,
+        photoUrl: displayableUrl,
         description: filename || null,
         tags: parsedTags.length > 0 ? parsedTags : null,
       });

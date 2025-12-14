@@ -244,7 +244,17 @@ export async function registerRoutes(
       console.log("Webhook received:", JSON.stringify(req.body, null, 2));
       
       // Handle both single object and array format from n8n
-      const data = Array.isArray(req.body) ? req.body[0] : req.body;
+      let data = Array.isArray(req.body) ? req.body[0] : req.body;
+      
+      // Unwrap nested JSON from n8n (handles "JSON" or similar wrapper keys)
+      if (data && typeof data === 'object') {
+        // Check for common wrapper keys that n8n uses
+        if (data.JSON && typeof data.JSON === 'object') {
+          data = data.JSON;
+        } else if (data.json && typeof data.json === 'object') {
+          data = data.json;
+        }
+      }
       
       if (!data) {
         return res.status(400).json({ error: "No data provided" });
@@ -321,6 +331,64 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Webhook error:", error);
       res.status(500).json({ error: "Failed to process webhook" });
+    }
+  });
+
+  // Webhook endpoint for n8n to create tagged photos
+  app.post("/api/webhook/tagged-photos", async (req, res) => {
+    try {
+      console.log("Tagged photos webhook received:", JSON.stringify(req.body, null, 2));
+      
+      // Handle both single object and array format from n8n
+      let data = Array.isArray(req.body) ? req.body[0] : req.body;
+      
+      // Unwrap nested JSON from n8n (handles "JSON" or similar wrapper keys)
+      if (data && typeof data === 'object') {
+        if (data.JSON && typeof data.JSON === 'object') {
+          data = data.JSON;
+        } else if (data.json && typeof data.json === 'object') {
+          data = data.json;
+        }
+      }
+      
+      if (!data) {
+        return res.status(400).json({ error: "No data provided" });
+      }
+      
+      // Extract fields from n8n format
+      // Expected format: { Image, filename, url, tags, uploadDate }
+      const { filename, url, tags, uploadDate, Image } = data;
+      
+      if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+      
+      // Parse tags - can be comma-separated string or array
+      let parsedTags: string[] = [];
+      if (tags) {
+        if (Array.isArray(tags)) {
+          parsedTags = tags.map((t: string) => t.trim()).filter(Boolean);
+        } else if (typeof tags === 'string') {
+          parsedTags = tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+        }
+      }
+      
+      // Generate a unique photoId from filename or timestamp
+      const photoId = filename || `photo-${Date.now()}`;
+      
+      // Create the tagged photo
+      const photo = await storage.createTaggedPhoto({
+        photoId,
+        photoUrl: url,
+        description: filename || null,
+        tags: parsedTags.length > 0 ? parsedTags : null,
+      });
+      
+      console.log("Tagged photo created via webhook:", photo.id);
+      res.status(201).json({ success: true, photoId: photo.id, message: "Tagged photo created successfully" });
+    } catch (error) {
+      console.error("Tagged photos webhook error:", error);
+      res.status(500).json({ error: "Failed to process tagged photos webhook" });
     }
   });
 

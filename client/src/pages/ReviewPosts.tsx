@@ -84,6 +84,20 @@ export default function ReviewPosts() {
     },
   });
 
+  const updateTimeMutation = useMutation({
+    mutationFn: async ({ postId, scheduledDate }: { postId: string; scheduledDate: Date }) => {
+      return apiRequest("PUT", `/api/posts/${postId}`, { scheduledDate });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
+      toast({ title: "Time updated", description: "The scheduled time has been updated." });
+    },
+  });
+
+  const handleTimeChange = (postId: string, newDate: Date) => {
+    updateTimeMutation.mutate({ postId, scheduledDate: newDate });
+  };
+
   const filteredPosts = useMemo(() => {
     return posts
       .filter((post) => post.status === activeFilter)
@@ -220,13 +234,14 @@ export default function ReviewPosts() {
                 strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-3" data-testid="review-post-list">
-                  {localPosts.map((post, index) => (
+                  {localPosts.map((post) => (
                     <DraggablePostCard
                       key={post.id}
                       id={post.id}
                       content={post.content}
                       images={post.images ?? undefined}
-                      rowIndex={index}
+                      scheduledDate={new Date(post.scheduledDate)}
+                      onTimeChange={handleTimeChange}
                       onClick={() => handlePostClick(post.id)}
                     />
                   ))}

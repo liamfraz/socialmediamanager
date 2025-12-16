@@ -1,35 +1,33 @@
+import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { GripVertical, Images } from "lucide-react";
-import { addDays, format } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { GripVertical, Images, Clock } from "lucide-react";
+import { format } from "date-fns";
 
 interface DraggablePostCardProps {
   id: string;
   content: string;
   images?: string[];
-  rowIndex: number;
+  scheduledDate: Date;
+  onTimeChange?: (postId: string, newDate: Date) => void;
   onClick?: () => void;
-}
-
-function getScheduledDate(rowIndex: number): { dayLabel: string; time: string } {
-  const today = new Date();
-  const scheduledDate = addDays(today, rowIndex + 1);
-  
-  const dayLabel = format(scheduledDate, "EEE, MMM d");
-  const time = "5:00 PM";
-  
-  return { dayLabel, time };
 }
 
 export default function DraggablePostCard({
   id,
   content,
   images,
-  rowIndex,
+  scheduledDate,
+  onTimeChange,
   onClick,
 }: DraggablePostCardProps) {
+  const [timePopoverOpen, setTimePopoverOpen] = useState(false);
+  const [editTime, setEditTime] = useState(format(scheduledDate, "HH:mm"));
+  
   const {
     attributes,
     listeners,
@@ -48,14 +46,62 @@ export default function DraggablePostCard({
   const hasImages = images && images.length > 0;
   const hasMultipleImages = images && images.length > 1;
   const contentSnippet = content.split("\n").slice(0, 2).join("\n");
-  const { dayLabel, time } = getScheduledDate(rowIndex);
+  const dayLabel = format(scheduledDate, "EEE, MMM d");
+  const time = format(scheduledDate, "h:mm a");
+
+  const handleTimeSubmit = () => {
+    const [hours, minutes] = editTime.split(":").map(Number);
+    const newDate = new Date(scheduledDate);
+    newDate.setHours(hours, minutes, 0, 0);
+    onTimeChange?.(id, newDate);
+    setTimePopoverOpen(false);
+  };
 
   return (
     <div className="flex items-stretch gap-3">
-      <div className="flex w-24 flex-shrink-0 flex-col items-center justify-center rounded-md bg-muted p-2 text-center">
-        <span className="text-xs font-medium text-muted-foreground">{dayLabel}</span>
-        <span className="text-sm font-semibold">{time}</span>
-      </div>
+      <Popover open={timePopoverOpen} onOpenChange={setTimePopoverOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="flex w-24 flex-shrink-0 flex-col items-center justify-center rounded-md bg-muted p-2 text-center hover-elevate cursor-pointer"
+            data-testid={`button-edit-time-${id}`}
+          >
+            <span className="text-xs font-medium text-muted-foreground">{dayLabel}</span>
+            <span className="text-sm font-semibold">{time}</span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-48 p-3" align="start">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Set Time</span>
+            </div>
+            <Input
+              type="time"
+              value={editTime}
+              onChange={(e) => setEditTime(e.target.value)}
+              className="w-full"
+              data-testid={`input-time-${id}`}
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setTimePopoverOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleTimeSubmit}
+                data-testid={`button-save-time-${id}`}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
       
       <div ref={setNodeRef} style={style} className="flex-1">
         <Card
@@ -74,10 +120,6 @@ export default function DraggablePostCard({
           >
             <GripVertical className="h-5 w-5 text-muted-foreground" />
           </button>
-
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-            {rowIndex + 1}
-          </div>
 
           {hasImages && (
             <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md">

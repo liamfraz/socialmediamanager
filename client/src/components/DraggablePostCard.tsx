@@ -26,7 +26,13 @@ export default function DraggablePostCard({
   onClick,
 }: DraggablePostCardProps) {
   const [timePopoverOpen, setTimePopoverOpen] = useState(false);
-  const [editTime, setEditTime] = useState(format(scheduledDate, "HH:mm"));
+  
+  // Ensure scheduledDate is valid
+  const validDate = scheduledDate instanceof Date && !isNaN(scheduledDate.getTime()) 
+    ? scheduledDate 
+    : new Date();
+  
+  const [editTime, setEditTime] = useState(format(validDate, "HH:mm"));
   
   const {
     attributes,
@@ -46,12 +52,12 @@ export default function DraggablePostCard({
   const hasImages = images && images.length > 0;
   const hasMultipleImages = images && images.length > 1;
   const contentSnippet = content.split("\n").slice(0, 2).join("\n");
-  const dayLabel = format(scheduledDate, "EEE, MMM d");
-  const time = format(scheduledDate, "h:mm a");
+  const dayLabel = format(validDate, "EEE, MMM d");
+  const time = format(validDate, "h:mm a");
 
   const handleTimeSubmit = () => {
     const [hours, minutes] = editTime.split(":").map(Number);
-    const newDate = new Date(scheduledDate);
+    const newDate = new Date(validDate);
     newDate.setHours(hours, minutes, 0, 0);
     onTimeChange?.(id, newDate);
     setTimePopoverOpen(false);

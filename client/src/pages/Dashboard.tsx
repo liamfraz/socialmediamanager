@@ -5,10 +5,11 @@ import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-ki
 import DraggablePostCard from "@/components/DraggablePostCard";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Pause, Play } from "lucide-react";
 import { addDays, format, isToday, isTomorrow } from "date-fns";
-import type { Post } from "@shared/schema";
+import type { Post, PostingSettings } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 function WeekAheadCalendar({ posts }: { posts: Post[] }) {
@@ -73,6 +74,23 @@ export default function Dashboard() {
 
   const { data: posts = [], isLoading } = useQuery<Post[]>({
     queryKey: ["/api/posts"],
+  });
+
+  const { data: postingSettings } = useQuery<PostingSettings>({
+    queryKey: ["/api/posting-settings"],
+  });
+
+  const isPaused = postingSettings?.isPaused === "true";
+
+  const togglePauseMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("PUT", "/api/posting-settings", {
+        isPaused: isPaused ? "false" : "true",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posting-settings"] });
+    },
   });
 
   const reorderMutation = useMutation({
@@ -141,10 +159,31 @@ export default function Dashboard() {
         <WeekAheadCalendar posts={localPosts} />
         
         <div>
-          <div className="mb-4 flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            <h2 className="text-lg font-semibold">Ready to Post</h2>
-            <Badge variant="outline" className="ml-2">{localPosts.length}</Badge>
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              <h2 className="text-lg font-semibold">Ready to Post</h2>
+              <Badge variant="outline">{localPosts.length}</Badge>
+            </div>
+            <Button
+              variant={isPaused ? "default" : "outline"}
+              size="sm"
+              onClick={() => togglePauseMutation.mutate()}
+              disabled={togglePauseMutation.isPending}
+              data-testid="button-toggle-pause"
+            >
+              {isPaused ? (
+                <>
+                  <Play className="mr-1.5 h-4 w-4" />
+                  Resume Posting
+                </>
+              ) : (
+                <>
+                  <Pause className="mr-1.5 h-4 w-4" />
+                  Pause Posting
+                </>
+              )}
+            </Button>
           </div>
           
           {localPosts.length === 0 ? (

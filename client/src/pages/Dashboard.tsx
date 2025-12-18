@@ -162,13 +162,13 @@ export default function Dashboard() {
                 strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-3" data-testid="post-list">
-                  {localPosts.map((post, index) => (
+                  {localPosts.map((post) => (
                     <DraggablePostCard
                       key={post.id}
                       id={post.id}
                       content={post.content}
                       images={post.images ?? undefined}
-                      rowIndex={index}
+                      scheduledDate={new Date(post.scheduledDate)}
                       onClick={() => handlePostClick(post.id)}
                     />
                   ))}

@@ -9,13 +9,14 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Pause, Play, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { Post } from "@shared/schema";
+import type { Post, PostingSettings } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-type FilterType = "pending" | "approved" | "rejected";
+type FilterType = "pending" | "approved" | "rejected" | "posted";
 
 export default function ReviewPosts() {
   const [, setLocation] = useLocation();
@@ -28,7 +29,27 @@ export default function ReviewPosts() {
 
   useEffect(() => {
     apiRequest("POST", "/api/seed").catch(() => {});
+    // Recalculate dates on initial load
+    apiRequest("POST", "/api/posts/recalculate-dates").catch(() => {});
   }, []);
+
+  // Fetch posting settings
+  const { data: postingSettings } = useQuery<PostingSettings>({
+    queryKey: ["/api/posting-settings"],
+  });
+
+  // Toggle pause mutation
+  const togglePauseMutation = useMutation({
+    mutationFn: async (isPaused: boolean) => {
+      return apiRequest("PATCH", "/api/posting-settings", { isPaused });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posting-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
+    },
+  });
+
+  const isPaused = postingSettings?.isPaused === "true";
 
   const handleOpenGenerateDialog = () => {
     setPostTopic("");
@@ -112,6 +133,7 @@ export default function ReviewPosts() {
     pending: posts.filter((p) => p.status === "pending").length,
     approved: posts.filter((p) => p.status === "approved").length,
     rejected: posts.filter((p) => p.status === "rejected").length,
+    posted: posts.filter((p) => p.status === "posted").length,
   }), [posts]);
 
   const sensors = useSensors(
@@ -157,7 +179,7 @@ export default function ReviewPosts() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b px-6 py-3 flex items-center justify-between gap-4">
+      <div className="border-b px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
         <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as FilterType)}>
           <TabsList>
             <TabsTrigger value="pending" className="gap-2" data-testid="tab-pending">
@@ -165,8 +187,12 @@ export default function ReviewPosts() {
               <Badge variant="secondary" className="ml-1">{counts.pending}</Badge>
             </TabsTrigger>
             <TabsTrigger value="approved" className="gap-2" data-testid="tab-approved">
-              Approved
+              Ready to Post
               <Badge variant="secondary" className="ml-1">{counts.approved}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="posted" className="gap-2" data-testid="tab-posted">
+              Posted
+              <Badge variant="secondary" className="ml-1">{counts.posted}</Badge>
             </TabsTrigger>
             <TabsTrigger value="rejected" className="gap-2" data-testid="tab-rejected">
               Rejected
@@ -174,18 +200,41 @@ export default function ReviewPosts() {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <Button 
-          onClick={handleOpenGenerateDialog} 
-          disabled={isGenerating}
-          data-testid="button-generate-posts"
-        >
-          {isGenerating ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Sparkles className="mr-2 h-4 w-4" />
+        <div className="flex items-center gap-4 flex-wrap">
+          {activeFilter === "approved" && (
+            <Button
+              variant={isPaused ? "outline" : "default"}
+              size="sm"
+              onClick={() => togglePauseMutation.mutate(!isPaused)}
+              disabled={togglePauseMutation.isPending}
+              data-testid="button-toggle-pause"
+            >
+              {isPaused ? (
+                <>
+                  <Play className="mr-2 h-4 w-4" />
+                  Resume Posting
+                </>
+              ) : (
+                <>
+                  <Pause className="mr-2 h-4 w-4" />
+                  Pause Posting
+                </>
+              )}
+            </Button>
           )}
-          Generate Posts
-        </Button>
+          <Button 
+            onClick={handleOpenGenerateDialog} 
+            disabled={isGenerating}
+            data-testid="button-generate-posts"
+          >
+            {isGenerating ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-2 h-4 w-4" />
+            )}
+            Generate Posts
+          </Button>
+        </div>
       </div>
 
       <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
@@ -221,6 +270,21 @@ export default function ReviewPosts() {
       
       <main className="flex-1 p-6 overflow-auto">
         <div className="mx-auto max-w-2xl">
+          {activeFilter === "approved" && counts.approved > 0 && (
+            <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+              {isPaused ? (
+                <>
+                  <Pause className="h-4 w-4 text-orange-500" />
+                  <span>Posting is paused. Posts will be delayed until resumed.</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span>Auto-posting enabled. Posts will be sent at their scheduled times.</span>
+                </>
+              )}
+            </div>
+          )}
           {localPosts.length === 0 ? (
             <EmptyState />
           ) : (

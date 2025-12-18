@@ -84,8 +84,8 @@ export default function Dashboard() {
 
   const togglePauseMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("PUT", "/api/posting-settings", {
-        isPaused: isPaused ? "false" : "true",
+      return apiRequest("PATCH", "/api/posting-settings", {
+        isPaused: !isPaused,
       });
     },
     onSuccess: () => {

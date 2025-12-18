@@ -76,3 +76,13 @@ export const updateTaggedPhotoSchema = createInsertSchema(taggedPhotos).omit({
 export type InsertTaggedPhoto = z.infer<typeof insertTaggedPhotoSchema>;
 export type UpdateTaggedPhoto = z.infer<typeof updateTaggedPhotoSchema>;
 export type TaggedPhoto = typeof taggedPhotos.$inferSelect;
+
+// Posting Settings table
+export const postingSettings = pgTable("posting_settings", {
+  id: varchar("id").primaryKey().default("default"),
+  isPaused: text("is_paused").notNull().default("false"),
+  webhookUrl: text("webhook_url"),
+  defaultPostTime: text("default_post_time").notNull().default("17:00"),
+});
+
+export type PostingSettings = typeof postingSettings.$inferSelect;

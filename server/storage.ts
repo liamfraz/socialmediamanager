@@ -1,4 +1,4 @@
-import { users, posts, taggedPhotos, type User, type InsertUser, type Post, type InsertPost, type TaggedPhoto, type InsertTaggedPhoto } from "@shared/schema";
+import { users, posts, taggedPhotos, postingSettings, type User, type InsertUser, type Post, type InsertPost, type TaggedPhoto, type InsertTaggedPhoto, type PostingSettings } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, and, max, desc } from "drizzle-orm";
 
@@ -22,6 +22,13 @@ export interface IStorage {
   createTaggedPhoto(photo: InsertTaggedPhoto): Promise<TaggedPhoto>;
   updateTaggedPhoto(id: string, data: Partial<InsertTaggedPhoto>): Promise<TaggedPhoto | undefined>;
   deleteTaggedPhoto(id: string): Promise<boolean>;
+
+  // Posting Settings operations
+  getPostingSettings(): Promise<PostingSettings>;
+  updatePostingSettings(data: Partial<PostingSettings>): Promise<PostingSettings>;
+  
+  // Posts by status with scheduled date filtering
+  getDuePosts(): Promise<Post[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -114,6 +121,54 @@ export class DatabaseStorage implements IStorage {
   async deleteTaggedPhoto(id: string): Promise<boolean> {
     const result = await db.delete(taggedPhotos).where(eq(taggedPhotos.id, id)).returning();
     return result.length > 0;
+  }
+
+  // Posting Settings operations
+  async getPostingSettings(): Promise<PostingSettings> {
+    const [settings] = await db.select().from(postingSettings).where(eq(postingSettings.id, "default"));
+    if (!settings) {
+      // Create default settings if not exists
+      const [newSettings] = await db.insert(postingSettings).values({
+        id: "default",
+        isPaused: "false",
+        webhookUrl: null,
+        defaultPostTime: "17:00",
+      }).returning();
+      return newSettings;
+    }
+    return settings;
+  }
+
+  async updatePostingSettings(data: Partial<PostingSettings>): Promise<PostingSettings> {
+    // Try to update existing
+    const [updated] = await db
+      .update(postingSettings)
+      .set(data)
+      .where(eq(postingSettings.id, "default"))
+      .returning();
+    
+    if (updated) {
+      return updated;
+    }
+    
+    // If no existing settings, create with provided data
+    const [newSettings] = await db.insert(postingSettings).values({
+      id: "default",
+      isPaused: data.isPaused || "false",
+      webhookUrl: data.webhookUrl || null,
+      defaultPostTime: data.defaultPostTime || "17:00",
+    }).returning();
+    return newSettings;
+  }
+
+  // Get approved posts that are due (scheduled time has passed)
+  async getDuePosts(): Promise<Post[]> {
+    const now = new Date();
+    const allPosts = await db.select().from(posts)
+      .where(eq(posts.status, "approved"))
+      .orderBy(asc(posts.scheduledDate));
+    
+    return allPosts.filter(post => new Date(post.scheduledDate) <= now);
   }
 }
 

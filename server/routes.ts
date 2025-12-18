@@ -4,6 +4,12 @@ import { storage } from "./storage";
 import { insertPostSchema, updatePostSchema, postStatusEnum, reorderSchema, insertTaggedPhotoSchema, updateTaggedPhotoSchema } from "@shared/schema";
 import { z } from "zod";
 
+// Webhook URL from environment
+const POSTING_WEBHOOK_URL = process.env.N8N_POSTING_WEBHOOK_URL || "";
+
+// Track scheduler interval
+let schedulerInterval: NodeJS.Timeout | null = null;
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -19,11 +25,36 @@ export async function registerRoutes(
     }
   });
 
+  // Helper function to recalculate scheduled dates for all approved posts
+  async function recalculateApprovedPostsDates() {
+    const allPosts = await storage.getAllPosts();
+    const approvedPosts = allPosts
+      .filter(p => p.status === "approved")
+      .sort((a, b) => a.order - b.order);
+    
+    const today = new Date();
+    today.setHours(17, 0, 0, 0); // Set to 5pm today
+    
+    // If today's 5pm has passed, start from tomorrow
+    if (new Date() >= today) {
+      today.setDate(today.getDate() + 1);
+    }
+    
+    for (let i = 0; i < approvedPosts.length; i++) {
+      const scheduledDate = new Date(today);
+      scheduledDate.setDate(today.getDate() + i);
+      
+      await storage.updatePost(approvedPosts[i].id, { scheduledDate });
+    }
+  }
+
   // Reorder posts - MUST be before /api/posts/:id to avoid matching "reorder" as an id
   app.put("/api/posts/reorder", async (req, res) => {
     try {
       const validatedData = reorderSchema.parse(req.body);
       await storage.reorderPosts(validatedData.updates);
+      // Recalculate dates after reordering
+      await recalculateApprovedPostsDates();
       res.json({ success: true });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -90,7 +121,15 @@ export async function registerRoutes(
       if (!post) {
         return res.status(404).json({ error: "Post not found" });
       }
-      res.json(post);
+      
+      // Recalculate all approved posts dates after status change
+      if (validatedStatus === "approved" || validatedStatus === "rejected" || validatedStatus === "pending") {
+        await recalculateApprovedPostsDates();
+      }
+      
+      // Fetch updated post with new scheduled date
+      const updatedPost = await storage.getPost(req.params.id);
+      res.json(updatedPost || post);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid status. Must be pending, approved, rejected, or draft" });
@@ -480,6 +519,136 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to delete photo" });
     }
   });
+
+  // Posting Settings endpoints
+  app.get("/api/posting-settings", async (_req, res) => {
+    try {
+      const settings = await storage.getPostingSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching posting settings:", error);
+      res.status(500).json({ error: "Failed to fetch posting settings" });
+    }
+  });
+
+  app.patch("/api/posting-settings", async (req, res) => {
+    try {
+      const { isPaused } = req.body;
+      const settings = await storage.updatePostingSettings({
+        isPaused: isPaused ? "true" : "false",
+      });
+      res.json(settings);
+    } catch (error) {
+      console.error("Error updating posting settings:", error);
+      res.status(500).json({ error: "Failed to update posting settings" });
+    }
+  });
+
+  // Recalculate dates endpoint (for initial setup)
+  app.post("/api/posts/recalculate-dates", async (_req, res) => {
+    try {
+      await recalculateApprovedPostsDates();
+      res.json({ success: true, message: "Dates recalculated" });
+    } catch (error) {
+      console.error("Error recalculating dates:", error);
+      res.status(500).json({ error: "Failed to recalculate dates" });
+    }
+  });
+
+  // Function to process due posts
+  async function processDuePosts() {
+    try {
+      const settings = await storage.getPostingSettings();
+      
+      // Check if posting is paused
+      if (settings.isPaused === "true") {
+        // Move all due posts to next day at 5pm
+        const duePosts = await storage.getDuePosts();
+        for (const post of duePosts) {
+          const nextDay = new Date();
+          nextDay.setDate(nextDay.getDate() + 1);
+          nextDay.setHours(17, 0, 0, 0);
+          await storage.updatePost(post.id, { scheduledDate: nextDay });
+        }
+        // Recalculate all dates to maintain sequence
+        await recalculateApprovedPostsDates();
+        console.log(`Posting paused. Moved ${duePosts.length} posts to next day.`);
+        return;
+      }
+
+      // Get due posts
+      const duePosts = await storage.getDuePosts();
+      
+      if (duePosts.length === 0) {
+        return;
+      }
+
+      // Process first due post only (one at a time)
+      const post = duePosts[0];
+      
+      if (!POSTING_WEBHOOK_URL) {
+        console.log("No webhook URL configured. Skipping post:", post.id);
+        return;
+      }
+
+      console.log(`Sending post ${post.id} to webhook...`);
+      
+      // Send to n8n webhook
+      const response = await fetch(POSTING_WEBHOOK_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          postId: post.id,
+          caption: post.content,
+          images: post.images || [],
+          scheduledDate: post.scheduledDate,
+        }),
+      });
+
+      if (response.ok) {
+        // Wait for verification - try to get response body
+        let verified = false;
+        try {
+          const responseData = await response.json();
+          // Check if webhook returned a success/verified response
+          verified = responseData.success === true || 
+                    responseData.verified === true ||
+                    responseData.status === "success" ||
+                    responseData.status === "posted";
+        } catch {
+          // If no JSON response but 200 OK, consider it verified
+          verified = response.status === 200;
+        }
+
+        if (verified) {
+          // Move post to "posted" status
+          await storage.updatePostStatus(post.id, "posted");
+          // Recalculate remaining approved posts dates
+          await recalculateApprovedPostsDates();
+          console.log(`Post ${post.id} successfully posted and moved to 'posted' status`);
+        } else {
+          console.log(`Post ${post.id} sent but not verified. Keeping as approved.`);
+        }
+      } else {
+        console.error(`Failed to send post ${post.id} to webhook:`, response.status);
+      }
+    } catch (error) {
+      console.error("Error processing due posts:", error);
+    }
+  }
+
+  // Start scheduler - check every 30 seconds
+  if (schedulerInterval) {
+    clearInterval(schedulerInterval);
+  }
+  schedulerInterval = setInterval(processDuePosts, 30000);
+  
+  // Also run immediately on startup
+  setTimeout(processDuePosts, 5000);
+  
+  console.log("Post scheduler started - checking every 30 seconds");
 
   return httpServer;
 }

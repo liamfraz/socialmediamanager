@@ -1,13 +1,15 @@
 import { Button } from "@/components/ui/button";
-import { Check, X, ArrowLeft, RotateCcw } from "lucide-react";
+import { Check, X, ArrowLeft, RotateCcw, Send } from "lucide-react";
 
 interface ActionPanelProps {
   status?: "pending" | "approved" | "rejected" | "draft";
   onApprove?: () => void;
   onReject?: () => void;
   onSendToReview?: () => void;
+  onPostNow?: () => void;
   onBack?: () => void;
   isLoading?: boolean;
+  isPostingNow?: boolean;
 }
 
 export default function ActionPanel({
@@ -15,8 +17,10 @@ export default function ActionPanel({
   onApprove,
   onReject,
   onSendToReview,
+  onPostNow,
   onBack,
   isLoading = false,
+  isPostingNow = false,
 }: ActionPanelProps) {
   const isApproved = status === "approved";
 
@@ -25,7 +29,7 @@ export default function ActionPanel({
       <Button
         variant="ghost"
         onClick={onBack}
-        disabled={isLoading}
+        disabled={isLoading || isPostingNow}
         data-testid="button-back"
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
@@ -34,15 +38,25 @@ export default function ActionPanel({
 
       <div className="flex flex-wrap items-center gap-3">
         {isApproved ? (
-          <Button
-            variant="outline"
-            onClick={onSendToReview}
-            disabled={isLoading}
-            data-testid="button-send-to-review"
-          >
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Send to Review
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              onClick={onSendToReview}
+              disabled={isLoading || isPostingNow}
+              data-testid="button-send-to-review"
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Send to Review
+            </Button>
+            <Button
+              onClick={onPostNow}
+              disabled={isLoading || isPostingNow}
+              data-testid="button-post-now"
+            >
+              <Send className="mr-2 h-4 w-4" />
+              {isPostingNow ? "Posting..." : "Post Now"}
+            </Button>
+          </>
         ) : (
           <>
             <Button

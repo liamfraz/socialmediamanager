@@ -556,6 +556,52 @@ export async function registerRoutes(
     }
   });
 
+  // Manual post endpoint - sends a post to webhook immediately
+  app.post("/api/posts/:id/post-now", async (req, res) => {
+    try {
+      const post = await storage.getPost(req.params.id);
+      if (!post) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      if (!POSTING_WEBHOOK_URL) {
+        return res.status(400).json({ error: "No webhook URL configured" });
+      }
+
+      console.log(`Manual posting: Sending post ${post.id} to webhook...`);
+      
+      // Send to n8n webhook
+      const response = await fetch(POSTING_WEBHOOK_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          postId: post.id,
+          caption: post.content,
+          images: post.images || [],
+          scheduledDate: post.scheduledDate,
+          manualPost: true,
+        }),
+      });
+
+      if (response.ok) {
+        // Move post to "posted" status
+        await storage.updatePostStatus(post.id, "posted");
+        // Recalculate remaining approved posts dates
+        await recalculateApprovedPostsDates();
+        console.log(`Manual post ${post.id} successfully sent and moved to 'posted' status`);
+        res.json({ success: true, message: "Post sent successfully" });
+      } else {
+        console.error(`Failed to manually send post ${post.id} to webhook:`, response.status);
+        res.status(500).json({ error: `Webhook returned ${response.status}` });
+      }
+    } catch (error) {
+      console.error("Error manually posting:", error);
+      res.status(500).json({ error: "Failed to send post" });
+    }
+  });
+
   // Function to process due posts
   async function processDuePosts() {
     try {

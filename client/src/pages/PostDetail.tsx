@@ -18,6 +18,7 @@ export default function PostDetail() {
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [sendToReviewModalOpen, setSendToReviewModalOpen] = useState(false);
+  const [postNowModalOpen, setPostNowModalOpen] = useState(false);
   const [editedContent, setEditedContent] = useState<string | null>(null);
   const [editedImages, setEditedImages] = useState<string[] | null>(null);
 
@@ -52,6 +53,15 @@ export default function PostDetail() {
   const updatePostMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: { content?: string; images?: string[] } }) => {
       return apiRequest("PUT", `/api/posts/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
+    },
+  });
+
+  const postNowMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("POST", `/api/posts/${id}/post-now`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
@@ -114,6 +124,24 @@ export default function PostDetail() {
     setLocation("/review");
   };
 
+  const handlePostNow = async () => {
+    try {
+      await postNowMutation.mutateAsync(post.id);
+      toast({
+        title: "Posted Successfully",
+        description: "The post has been sent to the publishing platform.",
+      });
+      setPostNowModalOpen(false);
+      setLocation("/posted");
+    } catch (error) {
+      toast({
+        title: "Failed to Post",
+        description: "There was an error sending the post. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="border-b px-6 py-3">
@@ -143,7 +171,9 @@ export default function PostDetail() {
         onApprove={() => setApproveModalOpen(true)}
         onReject={() => setRejectModalOpen(true)}
         onSendToReview={() => setSendToReviewModalOpen(true)}
+        onPostNow={() => setPostNowModalOpen(true)}
         onBack={() => setLocation("/dashboard")}
+        isPostingNow={postNowMutation.isPending}
       />
 
       <ConfirmationModal
@@ -172,6 +202,15 @@ export default function PostDetail() {
         description="This post will be sent back to the review queue. Are you sure?"
         confirmLabel="Yes, Send to Review"
         onConfirm={handleSendToReview}
+      />
+
+      <ConfirmationModal
+        open={postNowModalOpen}
+        onOpenChange={setPostNowModalOpen}
+        title="Post Now"
+        description="This will immediately send the post to Instagram via the webhook. Are you sure you want to post now?"
+        confirmLabel="Yes, Post Now"
+        onConfirm={handlePostNow}
       />
     </div>
   );

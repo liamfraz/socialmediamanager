@@ -32,17 +32,18 @@ export async function registerRoutes(
       .filter(p => p.status === "approved")
       .sort((a, b) => a.order - b.order);
     
+    // 5pm Melbourne time (AEDT = UTC+11) = 6am UTC
     const today = new Date();
-    today.setHours(17, 0, 0, 0); // Set to 5pm today
+    today.setUTCHours(6, 0, 0, 0); // 5pm Melbourne = 6am UTC
     
-    // If today's 5pm has passed, start from tomorrow
+    // If today's 5pm Melbourne has passed, start from tomorrow
     if (new Date() >= today) {
-      today.setDate(today.getDate() + 1);
+      today.setUTCDate(today.getUTCDate() + 1);
     }
     
     for (let i = 0; i < approvedPosts.length; i++) {
       const scheduledDate = new Date(today);
-      scheduledDate.setDate(today.getDate() + i);
+      scheduledDate.setUTCDate(today.getUTCDate() + i);
       
       await storage.updatePost(approvedPosts[i].id, { scheduledDate });
     }
@@ -562,12 +563,12 @@ export async function registerRoutes(
       
       // Check if posting is paused
       if (settings.isPaused === "true") {
-        // Move all due posts to next day at 5pm
+        // Move all due posts to next day at 5pm Melbourne (6am UTC)
         const duePosts = await storage.getDuePosts();
         for (const post of duePosts) {
           const nextDay = new Date();
-          nextDay.setDate(nextDay.getDate() + 1);
-          nextDay.setHours(17, 0, 0, 0);
+          nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+          nextDay.setUTCHours(6, 0, 0, 0); // 5pm Melbourne = 6am UTC
           await storage.updatePost(post.id, { scheduledDate: nextDay });
         }
         // Recalculate all dates to maintain sequence

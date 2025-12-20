@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search } from "lucide-react";
+import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -24,12 +24,15 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { TaggedPhoto } from "@shared/schema";
 import Breadcrumb from "@/components/Breadcrumb";
 
+const ITEMS_PER_PAGE = 50;
+
 export default function TaggedPhotos() {
   const { toast } = useToast();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState<TaggedPhoto | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   
   const [formData, setFormData] = useState({
     photoId: "",
@@ -57,6 +60,19 @@ export default function TaggedPhotos() {
       );
     });
   }, [photos, searchTerm]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredPhotos.length / ITEMS_PER_PAGE);
+  const paginatedPhotos = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredPhotos.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredPhotos, currentPage]);
+
+  // Reset to page 1 when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
 
   const createMutation = useMutation({
     mutationFn: (data: { photoId: string; photoUrl: string; description: string; tags: string[] }) =>
@@ -181,7 +197,7 @@ export default function TaggedPhotos() {
               <Input
                 placeholder="Search by tag..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="w-64 pl-9"
                 data-testid="input-search-tags"
               />
@@ -219,6 +235,7 @@ export default function TaggedPhotos() {
             </Button>
           </div>
         ) : (
+          <>
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -230,7 +247,7 @@ export default function TaggedPhotos() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredPhotos.map((photo) => (
+                {paginatedPhotos.map((photo) => (
                   <TableRow key={photo.id} data-testid={`row-photo-${photo.id}`}>
                     <TableCell>
                       <img
@@ -306,6 +323,40 @@ export default function TaggedPhotos() {
               </TableBody>
             </Table>
           </div>
+          
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredPhotos.length)} of {filteredPhotos.length} photos
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  data-testid="button-prev-page"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground px-2">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  data-testid="button-next-page"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
+          </>
         )}
       </div>
 

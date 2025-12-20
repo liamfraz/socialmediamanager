@@ -120,6 +120,21 @@ export default function TaggedPhotos() {
     return `https://lh3.googleusercontent.com/d/${photoId}=w800-h800`;
   };
 
+  // Convert any Google Drive URL to direct image URL
+  const getDirectImageUrl = (url: string) => {
+    // Already in lh3 format
+    if (url.includes("lh3.googleusercontent.com")) {
+      return url;
+    }
+    // Convert drive.google.com/file/d/{ID}/view format
+    const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+    if (driveMatch) {
+      return `https://lh3.googleusercontent.com/d/${driveMatch[1]}=w800-h800`;
+    }
+    // Return original if unknown format
+    return url;
+  };
+
   const handlePhotoIdChange = (value: string) => {
     setFormData((prev) => ({
       ...prev,
@@ -169,7 +184,6 @@ export default function TaggedPhotos() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-32">Photo ID</TableHead>
                   <TableHead className="w-24">Preview</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Tags</TableHead>
@@ -179,16 +193,11 @@ export default function TaggedPhotos() {
               <TableBody>
                 {photos.map((photo) => (
                   <TableRow key={photo.id} data-testid={`row-photo-${photo.id}`}>
-                    <TableCell className="font-mono text-xs">
-                      {photo.photoId.length > 20
-                        ? `${photo.photoId.slice(0, 20)}...`
-                        : photo.photoId}
-                    </TableCell>
                     <TableCell>
                       <img
-                        src={photo.photoUrl}
+                        src={getDirectImageUrl(photo.photoUrl)}
                         alt={photo.description || "Photo"}
-                        className="h-16 w-16 rounded-md object-cover"
+                        className="h-16 w-16 rounded-md object-cover bg-muted"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src =
                             "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'%3E%3C/circle%3E%3Cpolyline points='21 15 16 10 5 21'%3E%3C/polyline%3E%3C/svg%3E";
@@ -290,9 +299,9 @@ export default function TaggedPhotos() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Preview</label>
                 <img
-                  src={formData.photoUrl}
+                  src={getDirectImageUrl(formData.photoUrl)}
                   alt="Preview"
-                  className="h-32 w-32 rounded-md object-cover"
+                  className="h-32 w-32 rounded-md object-cover bg-muted"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                   }}

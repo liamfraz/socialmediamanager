@@ -33,6 +33,7 @@ export default function TaggedPhotos() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; description: string } | null>(null);
   
   const [formData, setFormData] = useState({
     photoId: "",
@@ -250,15 +251,25 @@ export default function TaggedPhotos() {
                 {paginatedPhotos.map((photo) => (
                   <TableRow key={photo.id} data-testid={`row-photo-${photo.id}`}>
                     <TableCell>
-                      <img
-                        src={getDirectImageUrl(photo.photoUrl)}
-                        alt={photo.description || "Photo"}
-                        className="h-16 w-16 rounded-md object-cover bg-muted"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src =
-                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'%3E%3C/circle%3E%3Cpolyline points='21 15 16 10 5 21'%3E%3C/polyline%3E%3C/svg%3E";
-                        }}
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setPreviewPhoto({ 
+                          url: getDirectImageUrl(photo.photoUrl), 
+                          description: photo.description || "Photo" 
+                        })}
+                        className="cursor-pointer hover:opacity-80 transition-opacity"
+                        data-testid={`button-preview-${photo.id}`}
+                      >
+                        <img
+                          src={getDirectImageUrl(photo.photoUrl)}
+                          alt={photo.description || "Photo"}
+                          className="h-16 w-16 rounded-md object-cover bg-muted"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'%3E%3C/circle%3E%3Cpolyline points='21 15 16 10 5 21'%3E%3C/polyline%3E%3C/svg%3E";
+                          }}
+                        />
+                      </button>
                     </TableCell>
                     <TableCell className="max-w-xs truncate">
                       {photo.description || "-"}
@@ -439,6 +450,18 @@ export default function TaggedPhotos() {
               {editingPhoto ? "Save Changes" : "Add Photo"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!previewPhoto} onOpenChange={(open) => !open && setPreviewPhoto(null)}>
+        <DialogContent className="max-w-3xl p-2">
+          {previewPhoto && (
+            <img
+              src={previewPhoto.url}
+              alt={previewPhoto.description}
+              className="w-full h-auto max-h-[80vh] object-contain rounded-md"
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

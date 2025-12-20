@@ -586,12 +586,33 @@ export async function registerRoutes(
       });
 
       if (response.ok) {
-        // Move post to "posted" status
-        await storage.updatePostStatus(post.id, "posted");
-        // Recalculate remaining approved posts dates
-        await recalculateApprovedPostsDates();
-        console.log(`Manual post ${post.id} successfully sent and moved to 'posted' status`);
-        res.json({ success: true, message: "Post sent successfully" });
+        // Wait for verification - check response body for confirmation
+        let verified = false;
+        let responseMessage = "";
+        try {
+          const responseData = await response.json();
+          // Check if webhook returned a success/verified response
+          verified = responseData.success === true || 
+                    responseData.verified === true ||
+                    responseData.status === "success" ||
+                    responseData.status === "posted";
+          responseMessage = responseData.message || "";
+        } catch {
+          // If no JSON response but 200 OK, consider it verified
+          verified = response.status === 200;
+        }
+
+        if (verified) {
+          // Move post to "posted" status only after n8n confirms
+          await storage.updatePostStatus(post.id, "posted");
+          // Recalculate remaining approved posts dates
+          await recalculateApprovedPostsDates();
+          console.log(`Manual post ${post.id} verified by n8n and moved to 'posted' status`);
+          res.json({ success: true, message: responseMessage || "Post sent and confirmed" });
+        } else {
+          console.log(`Manual post ${post.id} sent but not confirmed by n8n. Keeping current status.`);
+          res.status(400).json({ error: "Post sent but not confirmed by n8n. Check your n8n workflow configuration." });
+        }
       } else {
         console.error(`Failed to manually send post ${post.id} to webhook:`, response.status);
         res.status(500).json({ error: `Webhook returned ${response.status}` });

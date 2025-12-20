@@ -229,6 +229,7 @@ export default function Dashboard() {
                       scheduledDate={new Date(post.scheduledDate)}
                       onTimeChange={handleTimeChange}
                       onClick={() => handlePostClick(post.id)}
+                      isPaused={isPaused}
                     />
                   ))}
                 </div>

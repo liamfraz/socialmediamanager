@@ -16,6 +16,7 @@ interface DraggablePostCardProps {
   onTimeChange?: (postId: string, newDate: Date) => void;
   onClick?: () => void;
   showDateTime?: boolean;
+  isPaused?: boolean; // undefined = neutral, true = paused (red), false = active (green)
 }
 
 export default function DraggablePostCard({
@@ -26,6 +27,7 @@ export default function DraggablePostCard({
   onTimeChange,
   onClick,
   showDateTime = true,
+  isPaused,
 }: DraggablePostCardProps) {
   const [timePopoverOpen, setTimePopoverOpen] = useState(false);
   
@@ -72,11 +74,29 @@ export default function DraggablePostCard({
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="flex w-24 flex-shrink-0 flex-col items-center justify-center rounded-md bg-muted p-2 text-center hover-elevate cursor-pointer"
+              className={`flex w-24 flex-shrink-0 flex-col items-center justify-center rounded-md p-2 text-center hover-elevate cursor-pointer ${
+                isPaused === undefined
+                  ? "bg-muted"
+                  : isPaused 
+                    ? "bg-red-50 dark:bg-red-950/30" 
+                    : "bg-green-50 dark:bg-green-950/30"
+              }`}
               data-testid={`button-edit-time-${id}`}
             >
-              <span className="text-xs font-medium text-muted-foreground">{dayLabel}</span>
-              <span className="text-sm font-semibold">{time}</span>
+              <span className={`text-xs font-medium ${
+                isPaused === undefined 
+                  ? "text-muted-foreground" 
+                  : isPaused 
+                    ? "text-red-600 dark:text-red-400" 
+                    : "text-green-600 dark:text-green-400"
+              }`}>{dayLabel}</span>
+              <span className={`text-sm font-semibold ${
+                isPaused === undefined 
+                  ? "text-foreground" 
+                  : isPaused 
+                    ? "text-red-700 dark:text-red-300" 
+                    : "text-green-700 dark:text-green-300"
+              }`}>{time}</span>
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-48 p-3" align="start">

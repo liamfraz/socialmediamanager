@@ -44,4 +44,4 @@ integrations = ["javascript_database:1.0.0"]
 [userenv]
 
 [userenv.shared]
-N8N_POSTING_WEBHOOK_URL = "https://liamfraz3.app.n8n.cloud/webhook-test/8f41c880-1892-4971-8871-12bccc82b961"
+N8N_POSTING_WEBHOOK_URL = "https://liamfraz3.app.n8n.cloud/webhook/8f41c880-1892-4971-8871-12bccc82b961"

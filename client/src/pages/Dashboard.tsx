@@ -11,6 +11,7 @@ import { CheckCircle2, Pause, Play } from "lucide-react";
 import { addDays, format, isToday, isTomorrow } from "date-fns";
 import type { Post, PostingSettings } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 function WeekAheadCalendar({ posts }: { posts: Post[] }) {
   const today = new Date();
@@ -67,6 +68,7 @@ function WeekAheadCalendar({ posts }: { posts: Post[] }) {
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [localPosts, setLocalPosts] = useState<Post[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     apiRequest("POST", "/api/seed").catch(() => {});
@@ -101,6 +103,23 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
     },
   });
+
+  const updateTimeMutation = useMutation({
+    mutationFn: async ({ postId, scheduledDate }: { postId: string; scheduledDate: Date }) => {
+      return apiRequest("PUT", `/api/posts/${postId}`, { scheduledDate: scheduledDate.toISOString() });
+    },
+    onSuccess: () => {
+      toast({ title: "Time updated", description: "The scheduled time has been updated." });
+    },
+  });
+
+  const handleTimeChange = (postId: string, newDate: Date) => {
+    // Optimistic update - update local state immediately
+    setLocalPosts(prev => prev.map(p => 
+      p.id === postId ? { ...p, scheduledDate: newDate } : p
+    ));
+    updateTimeMutation.mutate({ postId, scheduledDate: newDate });
+  };
 
   const approvedPosts = useMemo(() => {
     return posts
@@ -208,6 +227,7 @@ export default function Dashboard() {
                       content={post.content}
                       images={post.images ?? undefined}
                       scheduledDate={new Date(post.scheduledDate)}
+                      onTimeChange={handleTimeChange}
                       onClick={() => handlePostClick(post.id)}
                     />
                   ))}

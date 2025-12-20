@@ -33,7 +33,7 @@ export default function TaggedPhotos() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; description: string } | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; description: string; tags: string[] } | null>(null);
   
   const [formData, setFormData] = useState({
     photoId: "",
@@ -255,7 +255,8 @@ export default function TaggedPhotos() {
                         type="button"
                         onClick={() => setPreviewPhoto({ 
                           url: getDirectImageUrl(photo.photoUrl), 
-                          description: photo.description || "Photo" 
+                          description: photo.description || "Photo",
+                          tags: photo.tags || []
                         })}
                         className="cursor-pointer hover:opacity-80 transition-opacity"
                         data-testid={`button-preview-${photo.id}`}
@@ -454,13 +455,27 @@ export default function TaggedPhotos() {
       </Dialog>
 
       <Dialog open={!!previewPhoto} onOpenChange={(open) => !open && setPreviewPhoto(null)}>
-        <DialogContent className="max-w-3xl p-2">
+        <DialogContent className="max-w-3xl p-0 overflow-hidden">
           {previewPhoto && (
-            <img
-              src={previewPhoto.url}
-              alt={previewPhoto.description}
-              className="w-full h-auto max-h-[80vh] object-contain rounded-md"
-            />
+            <div className="flex flex-col">
+              <img
+                src={previewPhoto.url}
+                alt={previewPhoto.description}
+                className="w-full h-auto max-h-[60vh] object-contain bg-black/5 dark:bg-white/5"
+              />
+              <div className="p-4 space-y-3">
+                <h3 className="font-medium text-lg">{previewPhoto.description}</h3>
+                {previewPhoto.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {previewPhoto.tags.map((tag, idx) => (
+                      <Badge key={idx} variant="secondary">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

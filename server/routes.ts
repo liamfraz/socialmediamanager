@@ -586,20 +586,22 @@ export async function registerRoutes(
       });
 
       if (response.ok) {
-        // Wait for verification - check response body for confirmation
+        // Wait for verification - REQUIRE explicit confirmation from n8n
         let verified = false;
         let responseMessage = "";
         try {
           const responseData = await response.json();
-          // Check if webhook returned a success/verified response
+          console.log(`Webhook response for post ${post.id}:`, JSON.stringify(responseData));
+          // Only accept explicit success confirmation - NOT just 200 OK
           verified = responseData.success === true || 
                     responseData.verified === true ||
                     responseData.status === "success" ||
                     responseData.status === "posted";
           responseMessage = responseData.message || "";
-        } catch {
-          // If no JSON response but 200 OK, consider it verified
-          verified = response.status === 200;
+        } catch (parseError) {
+          // No JSON response means no explicit confirmation
+          console.log(`No JSON response from webhook for post ${post.id}. Treating as unconfirmed.`);
+          verified = false;
         }
 
         if (verified) {
@@ -610,8 +612,8 @@ export async function registerRoutes(
           console.log(`Manual post ${post.id} verified by n8n and moved to 'posted' status`);
           res.json({ success: true, message: responseMessage || "Post sent and confirmed" });
         } else {
-          console.log(`Manual post ${post.id} sent but not confirmed by n8n. Keeping current status.`);
-          res.status(400).json({ error: "Post sent but not confirmed by n8n. Check your n8n workflow configuration." });
+          console.log(`Manual post ${post.id} sent but not confirmed by n8n. Response did not contain success confirmation.`);
+          res.status(400).json({ error: "Post sent but not confirmed. Configure your n8n workflow to use 'Respond to Webhook' node and return { success: true } after posting." });
         }
       } else {
         console.error(`Failed to manually send post ${post.id} to webhook:`, response.status);
@@ -676,28 +678,30 @@ export async function registerRoutes(
       });
 
       if (response.ok) {
-        // Wait for verification - try to get response body
+        // Wait for verification - REQUIRE explicit confirmation from n8n
         let verified = false;
         try {
           const responseData = await response.json();
-          // Check if webhook returned a success/verified response
+          console.log(`Scheduler webhook response for post ${post.id}:`, JSON.stringify(responseData));
+          // Only accept explicit success confirmation - NOT just 200 OK
           verified = responseData.success === true || 
                     responseData.verified === true ||
                     responseData.status === "success" ||
                     responseData.status === "posted";
         } catch {
-          // If no JSON response but 200 OK, consider it verified
-          verified = response.status === 200;
+          // No JSON response means no explicit confirmation
+          console.log(`No JSON response from webhook for scheduled post ${post.id}. Treating as unconfirmed.`);
+          verified = false;
         }
 
         if (verified) {
-          // Move post to "posted" status
+          // Move post to "posted" status only after n8n confirms
           await storage.updatePostStatus(post.id, "posted");
           // Recalculate remaining approved posts dates
           await recalculateApprovedPostsDates();
-          console.log(`Post ${post.id} successfully posted and moved to 'posted' status`);
+          console.log(`Post ${post.id} confirmed by n8n and moved to 'posted' status`);
         } else {
-          console.log(`Post ${post.id} sent but not verified. Keeping as approved.`);
+          console.log(`Post ${post.id} sent but not confirmed by n8n. Keeping as approved for retry.`);
         }
       } else {
         console.error(`Failed to send post ${post.id} to webhook:`, response.status);

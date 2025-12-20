@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon } from "lucide-react";
+import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ export default function TaggedPhotos() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState<TaggedPhoto | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   
   const [formData, setFormData] = useState({
     photoId: "",
@@ -41,6 +42,21 @@ export default function TaggedPhotos() {
     queryKey: ["/api/tagged-photos"],
     refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
+
+  // Filter photos based on search term (case-insensitive tag matching)
+  const filteredPhotos = useMemo(() => {
+    if (!searchTerm.trim()) return photos;
+    
+    const searchWords = searchTerm.toLowerCase().trim().split(/\s+/);
+    return photos.filter((photo) => {
+      if (!photo.tags || photo.tags.length === 0) return false;
+      const photoTags = photo.tags.map((tag) => tag.toLowerCase());
+      // Every search word must match at least one tag (partial match)
+      return searchWords.every((word) =>
+        photoTags.some((tag) => tag.includes(word))
+      );
+    });
+  }, [photos, searchTerm]);
 
   const createMutation = useMutation({
     mutationFn: (data: { photoId: string; photoUrl: string; description: string; tags: string[] }) =>
@@ -150,19 +166,31 @@ export default function TaggedPhotos() {
       </div>
 
       <div className="flex-1 p-6">
-        <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold" data-testid="text-page-title">
               Photo Library
             </h2>
             <p className="text-sm text-muted-foreground">
-              {photos.length} photo{photos.length !== 1 ? "s" : ""} in library
+              {searchTerm ? `${filteredPhotos.length} of ${photos.length}` : photos.length} photo{photos.length !== 1 ? "s" : ""} in library
             </p>
           </div>
-          <Button onClick={handleAdd} data-testid="button-add-photo">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Photo
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by tag..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-64 pl-9"
+                data-testid="input-search-tags"
+              />
+            </div>
+            <Button onClick={handleAdd} data-testid="button-add-photo">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Photo
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -179,6 +207,17 @@ export default function TaggedPhotos() {
               Add Your First Photo
             </Button>
           </div>
+        ) : filteredPhotos.length === 0 ? (
+          <div className="text-center py-12">
+            <Search className="mx-auto h-12 w-12 text-muted-foreground/50" />
+            <h3 className="mt-4 text-lg font-medium">No matching photos</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              No photos found with tags matching "{searchTerm}"
+            </p>
+            <Button className="mt-4" variant="outline" onClick={() => setSearchTerm("")}>
+              Clear Search
+            </Button>
+          </div>
         ) : (
           <div className="rounded-md border">
             <Table>
@@ -191,7 +230,7 @@ export default function TaggedPhotos() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {photos.map((photo) => (
+                {filteredPhotos.map((photo) => (
                   <TableRow key={photo.id} data-testid={`row-photo-${photo.id}`}>
                     <TableCell>
                       <img

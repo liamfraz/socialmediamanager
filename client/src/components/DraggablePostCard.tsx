@@ -15,6 +15,7 @@ interface DraggablePostCardProps {
   scheduledDate: Date;
   onTimeChange?: (postId: string, newDate: Date) => void;
   onClick?: () => void;
+  showDateTime?: boolean;
 }
 
 export default function DraggablePostCard({
@@ -24,6 +25,7 @@ export default function DraggablePostCard({
   scheduledDate,
   onTimeChange,
   onClick,
+  showDateTime = true,
 }: DraggablePostCardProps) {
   const [timePopoverOpen, setTimePopoverOpen] = useState(false);
   
@@ -65,49 +67,51 @@ export default function DraggablePostCard({
 
   return (
     <div className="flex items-stretch gap-3">
-      <Popover open={timePopoverOpen} onOpenChange={setTimePopoverOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="flex w-24 flex-shrink-0 flex-col items-center justify-center rounded-md bg-muted p-2 text-center hover-elevate cursor-pointer"
-            data-testid={`button-edit-time-${id}`}
-          >
-            <span className="text-xs font-medium text-muted-foreground">{dayLabel}</span>
-            <span className="text-sm font-semibold">{time}</span>
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-48 p-3" align="start">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Set Time</span>
+      {showDateTime && (
+        <Popover open={timePopoverOpen} onOpenChange={setTimePopoverOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="flex w-24 flex-shrink-0 flex-col items-center justify-center rounded-md bg-muted p-2 text-center hover-elevate cursor-pointer"
+              data-testid={`button-edit-time-${id}`}
+            >
+              <span className="text-xs font-medium text-muted-foreground">{dayLabel}</span>
+              <span className="text-sm font-semibold">{time}</span>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-3" align="start">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Set Time</span>
+              </div>
+              <Input
+                type="time"
+                value={editTime}
+                onChange={(e) => setEditTime(e.target.value)}
+                className="w-full"
+                data-testid={`input-time-${id}`}
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setTimePopoverOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleTimeSubmit}
+                  data-testid={`button-save-time-${id}`}
+                >
+                  Save
+                </Button>
+              </div>
             </div>
-            <Input
-              type="time"
-              value={editTime}
-              onChange={(e) => setEditTime(e.target.value)}
-              className="w-full"
-              data-testid={`input-time-${id}`}
-            />
-            <div className="flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setTimePopoverOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleTimeSubmit}
-                data-testid={`button-save-time-${id}`}
-              >
-                Save
-              </Button>
-            </div>
-          </div>
-        </PopoverContent>
-      </Popover>
+          </PopoverContent>
+        </Popover>
+      )}
       
       <div ref={setNodeRef} style={style} className="flex-1">
         <Card

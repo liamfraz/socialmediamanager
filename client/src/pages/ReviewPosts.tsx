@@ -307,6 +307,7 @@ export default function ReviewPosts() {
                       scheduledDate={new Date(post.scheduledDate)}
                       onTimeChange={handleTimeChange}
                       onClick={() => handlePostClick(post.id)}
+                      showDateTime={activeFilter !== "pending"}
                     />
                   ))}
                 </div>

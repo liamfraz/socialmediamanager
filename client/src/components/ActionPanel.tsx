@@ -33,7 +33,7 @@ export default function ActionPanel({
         data-testid="button-back"
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Dashboard
+        Back to Review Posts
       </Button>
 
       <div className="flex flex-wrap items-center gap-3">

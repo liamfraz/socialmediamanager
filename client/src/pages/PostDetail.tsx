@@ -172,7 +172,7 @@ export default function PostDetail() {
         onReject={() => setRejectModalOpen(true)}
         onSendToReview={() => setSendToReviewModalOpen(true)}
         onPostNow={() => setPostNowModalOpen(true)}
-        onBack={() => setLocation("/dashboard")}
+        onBack={() => setLocation("/review")}
         isPostingNow={postNowMutation.isPending}
       />
 

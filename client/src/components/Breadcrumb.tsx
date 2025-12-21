@@ -1,4 +1,4 @@
-import { ChevronRight, Home } from "lucide-react";
+import { ChevronRight, FileText } from "lucide-react";
 import { Link } from "wouter";
 
 export interface BreadcrumbItem {
@@ -18,11 +18,11 @@ export default function Breadcrumb({ items }: BreadcrumbProps) {
       data-testid="nav-breadcrumb"
     >
       <Link 
-        href="/dashboard"
+        href="/review"
         className="flex items-center text-muted-foreground hover:text-foreground"
-        data-testid="link-breadcrumb-home"
+        data-testid="link-breadcrumb-review"
       >
-        <Home className="h-4 w-4" />
+        <FileText className="h-4 w-4" />
       </Link>
 
       {items.map((item, index) => (

@@ -306,11 +306,14 @@ export async function registerRoutes(
         return obj;
       };
       
-      // Handle merge node format: [{ data: [{imageUrl}, {output}, {allFileIDs}] }]
+      // Handle merge node format: { data: [{imageUrl}, {output}, {allFileIDs}] } or [{ data: [...] }]
       let dataArray: any[] | null = null;
       
-      if (Array.isArray(req.body) && req.body.length === 1 && req.body[0].data && Array.isArray(req.body[0].data)) {
-        // Merge node format: [{ data: [...] }]
+      if (req.body && req.body.data && Array.isArray(req.body.data)) {
+        // Direct object format: { data: [...] }
+        dataArray = req.body.data;
+      } else if (Array.isArray(req.body) && req.body.length === 1 && req.body[0].data && Array.isArray(req.body[0].data)) {
+        // Wrapped array format: [{ data: [...] }]
         dataArray = req.body[0].data;
       } else if (Array.isArray(req.body) && req.body.length >= 2) {
         // Direct array format: [{...}, {...}, {...}]

@@ -306,60 +306,58 @@ export async function registerRoutes(
         return obj;
       };
       
-      // Handle new array format from n8n: [{Image1-20}, {output}, {allFileIDs}]
-      if (Array.isArray(req.body) && req.body.length >= 2) {
-        // Unwrap each array element
-        const imageObj = unwrapN8nData(req.body[0]);
-        const contentObj = unwrapN8nData(req.body[1]);
-        const metaObj = req.body.length >= 3 ? unwrapN8nData(req.body[2]) : null;
-        
-        // Extract content from "output" field
-        if (contentObj && contentObj.output) {
-          postCaption = contentObj.output;
-        }
-        // Fallback: check for caption/Caption in any object
-        if (!postCaption && contentObj) {
-          postCaption = contentObj.caption || contentObj.Caption || "";
-        }
-        
-        // Extract status from any object that has it
-        for (const obj of [imageObj, contentObj, metaObj]) {
-          if (obj && (obj.status || obj.Status)) {
-            postStatus = obj.status || obj.Status;
-            break;
+      // Handle merge node format: [{ data: [{imageUrl}, {output}, {allFileIDs}] }]
+      let dataArray: any[] | null = null;
+      
+      if (Array.isArray(req.body) && req.body.length === 1 && req.body[0].data && Array.isArray(req.body[0].data)) {
+        // Merge node format: [{ data: [...] }]
+        dataArray = req.body[0].data;
+      } else if (Array.isArray(req.body) && req.body.length >= 2) {
+        // Direct array format: [{...}, {...}, {...}]
+        dataArray = req.body;
+      }
+      
+      if (dataArray && dataArray.length >= 2) {
+        // Search through all items in the data array
+        for (const item of dataArray) {
+          const unwrapped = unwrapN8nData(item);
+          
+          // Extract output/caption
+          if (unwrapped.output && typeof unwrapped.output === 'string' && !postCaption) {
+            postCaption = unwrapped.output;
           }
-        }
-        
-        // Try to get images from allFileIDs in any object (preferred method)
-        for (const obj of [metaObj, imageObj, contentObj]) {
-          if (obj && obj.allFileIDs && typeof obj.allFileIDs === 'string') {
-            const fileIds = obj.allFileIDs.split(',').map((id: string) => id.trim()).filter((id: string) => id);
+          if ((unwrapped.caption || unwrapped.Caption) && !postCaption) {
+            postCaption = unwrapped.caption || unwrapped.Caption;
+          }
+          
+          // Extract status
+          if ((unwrapped.status || unwrapped.Status) && !postStatus) {
+            postStatus = unwrapped.status || unwrapped.Status;
+          }
+          
+          // Extract allFileIDs
+          if (unwrapped.allFileIDs && typeof unwrapped.allFileIDs === 'string' && images.length === 0) {
+            const fileIds = unwrapped.allFileIDs.split(',').map((id: string) => id.trim()).filter((id: string) => id);
             for (const fileId of fileIds) {
               images.push(`https://lh3.googleusercontent.com/d/${fileId}=w800-h800`);
             }
-            break; // Found allFileIDs, stop looking
           }
-        }
-        
-        // Fallback: Extract images from Image1 through Image20
-        if (images.length === 0 && imageObj && typeof imageObj === 'object') {
-          for (let i = 1; i <= 20; i++) {
-            const imageKey = `Image${i}`;
-            const imageValue = imageObj[imageKey];
-            if (imageValue && typeof imageValue === 'string' && imageValue.trim() !== '') {
-              const extractedUrl = extractImageUrl(imageValue);
-              if (extractedUrl) {
-                images.push(extractedUrl);
-              }
+          
+          // Extract imageUrl
+          if (unwrapped.imageUrl && typeof unwrapped.imageUrl === 'string') {
+            // Only add if we haven't already populated from allFileIDs
+            if (images.length === 0 || !images.includes(unwrapped.imageUrl)) {
+              // We'll skip individual imageUrls if we have allFileIDs
             }
           }
         }
         
-        // Also check for single imageUrl field
+        // If no images from allFileIDs, collect from individual imageUrl fields
         if (images.length === 0) {
-          for (const obj of [imageObj, contentObj, metaObj]) {
-            if (obj && obj.imageUrl && typeof obj.imageUrl === 'string') {
-              images.push(obj.imageUrl);
+          for (const item of dataArray) {
+            const unwrapped = unwrapN8nData(item);
+            if (unwrapped.imageUrl && typeof unwrapped.imageUrl === 'string') {
+              images.push(unwrapped.imageUrl);
             }
           }
         }

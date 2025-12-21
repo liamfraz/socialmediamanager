@@ -111,7 +111,7 @@ export default function ReviewPosts() {
       
       if (newPostIds.length > 0 && knownPostIdsRef.current.size > 0) {
         // Only mark as new if we had known posts before (not on initial load)
-        setNewlyCreatedPosts(prev => new Set([...prev, ...newPostIds]));
+        setNewlyCreatedPosts(prev => new Set([...Array.from(prev), ...newPostIds]));
         
         // Clear the "newly created" status after 4 seconds
         setTimeout(() => {

@@ -91,7 +91,7 @@ export default function PostDetail() {
       description: "The post has been approved and scheduled for publishing.",
     });
     setApproveModalOpen(false);
-    setLocation("/dashboard");
+    setLocation("/review");
   };
 
   const handleReject = async () => {
@@ -103,7 +103,7 @@ export default function PostDetail() {
       variant: "destructive",
     });
     setRejectModalOpen(false);
-    setLocation("/dashboard");
+    setLocation("/review");
   };
 
   const handleSendToReview = async () => {

@@ -283,50 +283,115 @@ export async function registerRoutes(
     try {
       console.log("Webhook received:", JSON.stringify(req.body, null, 2));
       
-      // Handle both single object and array format from n8n
-      let data = Array.isArray(req.body) ? req.body[0] : req.body;
-      
-      // Unwrap nested JSON from n8n (handles "JSON" or similar wrapper keys)
-      if (data && typeof data === 'object') {
-        // Check for common wrapper keys that n8n uses
-        if (data.JSON && typeof data.JSON === 'object') {
-          data = data.JSON;
-        } else if (data.json && typeof data.json === 'object') {
-          data = data.json;
-        }
-      }
-      
-      if (!data) {
-        return res.status(400).json({ error: "No data provided" });
-      }
-      
-      const { status, caption, Status, Caption } = data;
-      
-      // Use either camelCase or original casing from n8n
-      const postStatus = status || Status;
-      const postCaption = caption || Caption;
-      
-      if (!postCaption) {
-        return res.status(400).json({ error: "Caption is required" });
-      }
-      
-      // Collect all images from Image 1 through Image 10
+      let postCaption = "";
+      let postStatus = "";
       const images: string[] = [];
-      for (let i = 1; i <= 10; i++) {
-        const imageKey = `Image ${i}`;
-        const imageUrl = data[imageKey];
-        if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
-          images.push(imageUrl.trim());
-        }
-      }
       
-      // Also check if images array is provided directly
-      if (data.images && Array.isArray(data.images)) {
-        for (const img of data.images) {
-          if (img && typeof img === 'string' && img.trim() !== '') {
-            images.push(img.trim());
+      // Helper function to extract URL from =IMAGE("url") format
+      const extractImageUrl = (value: string): string | null => {
+        if (!value || typeof value !== 'string') return null;
+        // Match =IMAGE("...") format from Google Sheets
+        const match = value.match(/=IMAGE\("([^"]+)"\)/i);
+        if (match) return match[1];
+        // If it's already a plain URL, return it
+        if (value.startsWith('http')) return value;
+        return null;
+      };
+      
+      // Helper function to unwrap n8n JSON wrappers
+      const unwrapN8nData = (obj: any): any => {
+        if (!obj || typeof obj !== 'object') return obj;
+        if (obj.JSON && typeof obj.JSON === 'object') return obj.JSON;
+        if (obj.json && typeof obj.json === 'object') return obj.json;
+        return obj;
+      };
+      
+      // Handle new array format from n8n: [{Image1-20}, {output}, {allFileIDs}]
+      if (Array.isArray(req.body) && req.body.length >= 2) {
+        // Unwrap each array element
+        const imageObj = unwrapN8nData(req.body[0]);
+        const contentObj = unwrapN8nData(req.body[1]);
+        const metaObj = req.body.length >= 3 ? unwrapN8nData(req.body[2]) : null;
+        
+        // Extract content from "output" field
+        if (contentObj && contentObj.output) {
+          postCaption = contentObj.output;
+        }
+        // Fallback: check for caption/Caption in any object
+        if (!postCaption && contentObj) {
+          postCaption = contentObj.caption || contentObj.Caption || "";
+        }
+        
+        // Extract status from any object that has it
+        for (const obj of [imageObj, contentObj, metaObj]) {
+          if (obj && (obj.status || obj.Status)) {
+            postStatus = obj.status || obj.Status;
+            break;
           }
         }
+        
+        // Extract images from Image1 through Image20
+        if (imageObj && typeof imageObj === 'object') {
+          for (let i = 1; i <= 20; i++) {
+            const imageKey = `Image${i}`;
+            const imageValue = imageObj[imageKey];
+            if (imageValue && typeof imageValue === 'string' && imageValue.trim() !== '') {
+              const extractedUrl = extractImageUrl(imageValue);
+              if (extractedUrl) {
+                images.push(extractedUrl);
+              }
+            }
+          }
+        }
+      } else {
+        // Fallback: Handle single object format (legacy)
+        let data = Array.isArray(req.body) ? req.body[0] : req.body;
+        
+        // Unwrap nested JSON from n8n (handles "JSON" or similar wrapper keys)
+        if (data && typeof data === 'object') {
+          if (data.JSON && typeof data.JSON === 'object') {
+            data = data.JSON;
+          } else if (data.json && typeof data.json === 'object') {
+            data = data.json;
+          }
+        }
+        
+        if (!data) {
+          return res.status(400).json({ error: "No data provided" });
+        }
+        
+        const { status, caption, Status, Caption } = data;
+        postStatus = status || Status || "";
+        postCaption = caption || Caption || "";
+        
+        // Collect all images from Image 1 through Image 10 (legacy format with space)
+        for (let i = 1; i <= 10; i++) {
+          const imageKey = `Image ${i}`;
+          const imageUrl = data[imageKey];
+          if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
+            const extractedUrl = extractImageUrl(imageUrl);
+            if (extractedUrl) {
+              images.push(extractedUrl);
+            } else {
+              images.push(imageUrl.trim());
+            }
+          }
+        }
+        
+        // Also check if images array is provided directly
+        if (data.images && Array.isArray(data.images)) {
+          for (const img of data.images) {
+            if (img && typeof img === 'string' && img.trim() !== '') {
+              images.push(img.trim());
+            }
+          }
+        }
+      }
+      
+      // Trim and validate caption
+      postCaption = postCaption.trim();
+      if (!postCaption) {
+        return res.status(400).json({ error: "Caption/content is required" });
       }
       
       // Map status from n8n to our status enum

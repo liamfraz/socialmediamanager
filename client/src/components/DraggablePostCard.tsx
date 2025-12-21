@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { GripVertical, Images, Clock } from "lucide-react";
+import { GripVertical, Images, Clock, Loader2, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 
 interface DraggablePostCardProps {
@@ -17,6 +17,7 @@ interface DraggablePostCardProps {
   onClick?: () => void;
   showDateTime?: boolean;
   isPaused?: boolean; // undefined = neutral, true = paused (red), false = active (green)
+  isNewlyCreated?: boolean; // Show loading then tick animation
 }
 
 export default function DraggablePostCard({
@@ -28,8 +29,28 @@ export default function DraggablePostCard({
   onClick,
   showDateTime = true,
   isPaused,
+  isNewlyCreated = false,
 }: DraggablePostCardProps) {
   const [timePopoverOpen, setTimePopoverOpen] = useState(false);
+  const [showTick, setShowTick] = useState(false);
+  const [showIndicator, setShowIndicator] = useState(isNewlyCreated);
+
+  useEffect(() => {
+    if (isNewlyCreated) {
+      setShowIndicator(true);
+      // Show loading for 1 second, then tick for 2 seconds
+      const tickTimer = setTimeout(() => {
+        setShowTick(true);
+      }, 1000);
+      const hideTimer = setTimeout(() => {
+        setShowIndicator(false);
+      }, 3000);
+      return () => {
+        clearTimeout(tickTimer);
+        clearTimeout(hideTimer);
+      };
+    }
+  }, [isNewlyCreated]);
   
   // Ensure scheduledDate is valid
   const validDate = scheduledDate instanceof Date && !isNaN(scheduledDate.getTime()) 
@@ -178,6 +199,16 @@ export default function DraggablePostCard({
               {contentSnippet}
             </p>
           </div>
+
+          {showIndicator && (
+            <div className="flex items-center justify-center w-8 h-8 flex-shrink-0">
+              {showTick ? (
+                <CheckCircle className="h-5 w-5 text-green-500 animate-in fade-in zoom-in duration-300" />
+              ) : (
+                <Loader2 className="h-5 w-5 text-primary animate-spin" />
+              )}
+            </div>
+          )}
 
           <Button
             variant="outline"

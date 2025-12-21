@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DndContext, closestCenter, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
@@ -25,6 +25,8 @@ export default function ReviewPosts() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [postTopic, setPostTopic] = useState("");
+  const [newlyCreatedPosts, setNewlyCreatedPosts] = useState<Set<string>>(new Set());
+  const knownPostIdsRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -94,7 +96,37 @@ export default function ReviewPosts() {
 
   const { data: posts = [], isLoading } = useQuery<Post[]>({
     queryKey: ["/api/posts"],
+    refetchInterval: isGenerating ? 2000 : false, // Poll every 2 seconds while generating
   });
+
+  // Track new posts that appear after generation starts
+  useEffect(() => {
+    if (posts.length > 0) {
+      const currentIds = new Set(posts.map(p => p.id));
+      
+      // Find posts that are new (not in our known list)
+      const newPostIds = posts
+        .filter(p => !knownPostIdsRef.current.has(p.id))
+        .map(p => p.id);
+      
+      if (newPostIds.length > 0 && knownPostIdsRef.current.size > 0) {
+        // Only mark as new if we had known posts before (not on initial load)
+        setNewlyCreatedPosts(prev => new Set([...prev, ...newPostIds]));
+        
+        // Clear the "newly created" status after 4 seconds
+        setTimeout(() => {
+          setNewlyCreatedPosts(prev => {
+            const next = new Set(prev);
+            newPostIds.forEach(id => next.delete(id));
+            return next;
+          });
+        }, 4000);
+      }
+      
+      // Update our known IDs reference
+      knownPostIdsRef.current = currentIds;
+    }
+  }, [posts]);
 
   const reorderMutation = useMutation({
     mutationFn: async (updates: { id: string; order: number }[]) => {
@@ -308,6 +340,7 @@ export default function ReviewPosts() {
                       onTimeChange={handleTimeChange}
                       onClick={() => handlePostClick(post.id)}
                       showDateTime={activeFilter !== "pending"}
+                      isNewlyCreated={newlyCreatedPosts.has(post.id)}
                     />
                   ))}
                 </div>

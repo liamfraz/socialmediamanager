@@ -330,8 +330,19 @@ export async function registerRoutes(
           }
         }
         
-        // Extract images from Image1 through Image20
-        if (imageObj && typeof imageObj === 'object') {
+        // Try to get images from allFileIDs in any object (preferred method)
+        for (const obj of [metaObj, imageObj, contentObj]) {
+          if (obj && obj.allFileIDs && typeof obj.allFileIDs === 'string') {
+            const fileIds = obj.allFileIDs.split(',').map((id: string) => id.trim()).filter((id: string) => id);
+            for (const fileId of fileIds) {
+              images.push(`https://lh3.googleusercontent.com/d/${fileId}=w800-h800`);
+            }
+            break; // Found allFileIDs, stop looking
+          }
+        }
+        
+        // Fallback: Extract images from Image1 through Image20
+        if (images.length === 0 && imageObj && typeof imageObj === 'object') {
           for (let i = 1; i <= 20; i++) {
             const imageKey = `Image${i}`;
             const imageValue = imageObj[imageKey];
@@ -340,6 +351,15 @@ export async function registerRoutes(
               if (extractedUrl) {
                 images.push(extractedUrl);
               }
+            }
+          }
+        }
+        
+        // Also check for single imageUrl field
+        if (images.length === 0) {
+          for (const obj of [imageObj, contentObj, metaObj]) {
+            if (obj && obj.imageUrl && typeof obj.imageUrl === 'string') {
+              images.push(obj.imageUrl);
             }
           }
         }

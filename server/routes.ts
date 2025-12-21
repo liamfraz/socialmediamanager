@@ -364,7 +364,7 @@ export async function registerRoutes(
           }
         }
       } else {
-        // Fallback: Handle single object format (legacy)
+        // Fallback: Handle single object format (legacy or n8n per-item mode)
         let data = Array.isArray(req.body) ? req.body[0] : req.body;
         
         // Unwrap nested JSON from n8n (handles "JSON" or similar wrapper keys)
@@ -380,9 +380,24 @@ export async function registerRoutes(
           return res.status(400).json({ error: "No data provided" });
         }
         
+        // Handle single object with output field (n8n sending items one by one)
+        if (data.output && typeof data.output === 'string') {
+          postCaption = data.output;
+        }
+        
+        // Handle allFileIDs in single object
+        if (data.allFileIDs && typeof data.allFileIDs === 'string') {
+          const fileIds = data.allFileIDs.split(',').map((id: string) => id.trim()).filter((id: string) => id);
+          for (const fileId of fileIds) {
+            images.push(`https://lh3.googleusercontent.com/d/${fileId}=w800-h800`);
+          }
+        }
+        
         const { status, caption, Status, Caption } = data;
-        postStatus = status || Status || "";
-        postCaption = caption || Caption || "";
+        postStatus = status || Status || postStatus || "";
+        if (!postCaption) {
+          postCaption = caption || Caption || "";
+        }
         
         // Collect all images from Image 1 through Image 10 (legacy format with space)
         for (let i = 1; i <= 10; i++) {
@@ -405,6 +420,11 @@ export async function registerRoutes(
               images.push(img.trim());
             }
           }
+        }
+        
+        // Check for single imageUrl field
+        if (images.length === 0 && data.imageUrl && typeof data.imageUrl === 'string') {
+          images.push(data.imageUrl);
         }
       }
       

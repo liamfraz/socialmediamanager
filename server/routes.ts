@@ -321,7 +321,7 @@ export async function registerRoutes(
       }
       
       if (dataArray && dataArray.length >= 2) {
-        // Search through all items in the data array
+        // First pass: collect all imageUrl values and extract caption/status
         for (const item of dataArray) {
           const unwrapped = unwrapN8nData(item);
           
@@ -338,29 +338,24 @@ export async function registerRoutes(
             postStatus = unwrapped.status || unwrapped.Status;
           }
           
-          // Extract allFileIDs
-          if (unwrapped.allFileIDs && typeof unwrapped.allFileIDs === 'string' && images.length === 0) {
-            const fileIds = unwrapped.allFileIDs.split(',').map((id: string) => id.trim()).filter((id: string) => id);
-            for (const fileId of fileIds) {
-              images.push(`https://lh3.googleusercontent.com/d/${fileId}=w800-h800`);
-            }
-          }
-          
-          // Extract imageUrl
+          // Collect individual imageUrl values (prioritize these)
           if (unwrapped.imageUrl && typeof unwrapped.imageUrl === 'string') {
-            // Only add if we haven't already populated from allFileIDs
-            if (images.length === 0 || !images.includes(unwrapped.imageUrl)) {
-              // We'll skip individual imageUrls if we have allFileIDs
+            if (!images.includes(unwrapped.imageUrl)) {
+              images.push(unwrapped.imageUrl);
             }
           }
         }
         
-        // If no images from allFileIDs, collect from individual imageUrl fields
+        // If no images from imageUrl fields, try allFileIDs as fallback
         if (images.length === 0) {
           for (const item of dataArray) {
             const unwrapped = unwrapN8nData(item);
-            if (unwrapped.imageUrl && typeof unwrapped.imageUrl === 'string') {
-              images.push(unwrapped.imageUrl);
+            if (unwrapped.allFileIDs && typeof unwrapped.allFileIDs === 'string') {
+              const fileIds = unwrapped.allFileIDs.split(',').map((id: string) => id.trim()).filter((id: string) => id);
+              for (const fileId of fileIds) {
+                images.push(`https://lh3.googleusercontent.com/d/${fileId}=w800-h800`);
+              }
+              break; // Only process allFileIDs once
             }
           }
         }

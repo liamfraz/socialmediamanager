@@ -29,6 +29,7 @@ export const posts = pgTable("posts", {
   scheduledDate: timestamp("scheduled_date").notNull(),
   images: text("images").array(),
   order: integer("order").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
 export const insertPostSchema = createInsertSchema(posts).omit({

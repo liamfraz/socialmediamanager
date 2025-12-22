@@ -337,9 +337,11 @@ export default function ReviewPosts() {
                       content={post.content}
                       images={post.images ?? undefined}
                       scheduledDate={new Date(post.scheduledDate)}
+                      createdAt={post.createdAt ? new Date(post.createdAt) : undefined}
                       onTimeChange={handleTimeChange}
                       onClick={() => handlePostClick(post.id)}
                       showDateTime={activeFilter !== "pending"}
+                      showCreatedDate={activeFilter === "pending"}
                       isNewlyCreated={newlyCreatedPosts.has(post.id)}
                     />
                   ))}

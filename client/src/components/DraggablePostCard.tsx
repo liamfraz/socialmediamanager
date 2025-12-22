@@ -13,9 +13,11 @@ interface DraggablePostCardProps {
   content: string;
   images?: string[];
   scheduledDate: Date;
+  createdAt?: Date;
   onTimeChange?: (postId: string, newDate: Date) => void;
   onClick?: () => void;
   showDateTime?: boolean;
+  showCreatedDate?: boolean;
   isPaused?: boolean; // undefined = neutral, true = paused (red), false = active (green)
   isNewlyCreated?: boolean; // Show loading then tick animation
 }
@@ -25,9 +27,11 @@ export default function DraggablePostCard({
   content,
   images,
   scheduledDate,
+  createdAt,
   onTimeChange,
   onClick,
   showDateTime = true,
+  showCreatedDate = false,
   isPaused,
   isNewlyCreated = false,
 }: DraggablePostCardProps) {
@@ -207,6 +211,13 @@ export default function DraggablePostCard({
               ) : (
                 <Loader2 className="h-5 w-5 text-primary animate-spin" />
               )}
+            </div>
+          )}
+
+          {showCreatedDate && createdAt && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-shrink-0">
+              <Clock className="h-3.5 w-3.5" />
+              <span>{format(new Date(createdAt), "MMM d, h:mm a")}</span>
             </div>
           )}
 

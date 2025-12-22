@@ -446,24 +446,26 @@ export async function registerRoutes(
         }
       }
       
-      // Get the max order for pending posts to add new post at the end
+      // Get all pending posts and shift their order to make room at the top
       const allPosts = await storage.getAllPosts();
       const pendingPosts = allPosts.filter(p => p.status === "pending");
-      const maxOrder = pendingPosts.length > 0 
-        ? Math.max(...pendingPosts.map(p => p.order || 0)) 
-        : 0;
       
-      // Calculate scheduled date based on position (tomorrow + order at 5:00 PM)
+      // Shift all existing pending posts down by 1
+      for (const pendingPost of pendingPosts) {
+        await storage.updatePost(pendingPost.id, { order: pendingPost.order + 1 });
+      }
+      
+      // Calculate scheduled date (tomorrow at 5:00 PM)
       const scheduledDate = new Date();
-      scheduledDate.setDate(scheduledDate.getDate() + 1 + maxOrder);
+      scheduledDate.setDate(scheduledDate.getDate() + 1);
       scheduledDate.setHours(17, 0, 0, 0);
       
-      // Create the post
+      // Create the post at the top (order = 0)
       const post = await storage.createPost({
         content: postCaption,
         status: mappedStatus,
         images: images.length > 0 ? images : null,
-        order: maxOrder + 1,
+        order: 0,
         scheduledDate,
       });
       

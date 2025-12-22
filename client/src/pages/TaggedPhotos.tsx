@@ -111,8 +111,7 @@ export default function TaggedPhotos() {
   };
 
   const handleAdd = () => {
-    resetForm();
-    setAddDialogOpen(true);
+    window.open("https://drive.google.com/drive/folders/1aZJNdNDyhuUcRxi1Of6j3gijVbCQhtFj?usp=drive_link", "_blank");
   };
 
   const handleEdit = (photo: TaggedPhoto) => {

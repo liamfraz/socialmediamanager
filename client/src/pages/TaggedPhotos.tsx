@@ -157,14 +157,20 @@ export default function TaggedPhotos() {
 
   const handleBulkDelete = async () => {
     const idsToDelete = Array.from(selectedPhotos);
+    setSelectedPhotos(new Set()); // Clear selection immediately
+    let deletedCount = 0;
     for (const id of idsToDelete) {
-      await apiRequest("DELETE", `/api/tagged-photos/${id}`);
+      try {
+        await apiRequest("DELETE", `/api/tagged-photos/${id}`);
+        deletedCount++;
+      } catch {
+        // Photo may have already been deleted, continue with others
+      }
     }
     queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] });
-    setSelectedPhotos(new Set());
     toast({ 
       title: "Photos deleted", 
-      description: `${idsToDelete.length} photo(s) have been removed from your library.` 
+      description: `${deletedCount} photo(s) have been removed from your library.` 
     });
   };
 

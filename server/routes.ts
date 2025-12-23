@@ -620,11 +620,15 @@ export async function registerRoutes(
       }
       
       // Send photo ID to n8n webhook (fire and forget)
-      const webhookUrl = "https://liamfraz3.app.n8n.cloud/webhook/5fca8a1e-2e8d-43d9-a2e7-363655728c98";
+      // Use webhook-test for testing, webhook for production
+      const webhookUrl = "https://liamfraz3.app.n8n.cloud/webhook-test/5fca8a1e-2e8d-43d9-a2e7-363655728c98";
+      console.log("Sending photo deletion to n8n:", { photoId, webhookUrl });
       fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ photoId }),
+      }).then((response) => {
+        console.log("n8n webhook response:", response.status);
       }).catch((err) => {
         console.error("Failed to notify n8n of photo deletion:", err);
       });

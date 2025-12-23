@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Check, X, ArrowLeft, RotateCcw, Send } from "lucide-react";
+import { Check, X, ArrowLeft, RotateCcw, Send, Trash2 } from "lucide-react";
 
 interface ActionPanelProps {
   status?: "pending" | "approved" | "rejected" | "draft";
@@ -7,6 +7,7 @@ interface ActionPanelProps {
   onReject?: () => void;
   onSendToReview?: () => void;
   onPostNow?: () => void;
+  onDelete?: () => void;
   onBack?: () => void;
   isLoading?: boolean;
   isPostingNow?: boolean;
@@ -18,11 +19,13 @@ export default function ActionPanel({
   onReject,
   onSendToReview,
   onPostNow,
+  onDelete,
   onBack,
   isLoading = false,
   isPostingNow = false,
 }: ActionPanelProps) {
   const isApproved = status === "approved";
+  const isRejected = status === "rejected";
 
   return (
     <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-4 border-t bg-background px-6 py-4">
@@ -55,6 +58,27 @@ export default function ActionPanel({
             >
               <Send className="mr-2 h-4 w-4" />
               {isPostingNow ? "Posting..." : "Post Now"}
+            </Button>
+          </>
+        ) : isRejected ? (
+          <>
+            <Button
+              variant="outline"
+              onClick={onSendToReview}
+              disabled={isLoading}
+              data-testid="button-send-to-review"
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Send to Review
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={onDelete}
+              disabled={isLoading}
+              data-testid="button-delete-post"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Post
             </Button>
           </>
         ) : (

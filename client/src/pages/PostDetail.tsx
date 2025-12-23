@@ -19,6 +19,7 @@ export default function PostDetail() {
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [sendToReviewModalOpen, setSendToReviewModalOpen] = useState(false);
   const [postNowModalOpen, setPostNowModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [editedContent, setEditedContent] = useState<string | null>(null);
   const [editedImages, setEditedImages] = useState<string[] | null>(null);
 
@@ -62,6 +63,15 @@ export default function PostDetail() {
   const postNowMutation = useMutation({
     mutationFn: async (id: string) => {
       return apiRequest("POST", `/api/posts/${id}/post-now`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/posts/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
@@ -142,6 +152,16 @@ export default function PostDetail() {
     }
   };
 
+  const handleDelete = async () => {
+    await deleteMutation.mutateAsync(post.id);
+    toast({
+      title: "Post Deleted",
+      description: "The post has been permanently deleted.",
+    });
+    setDeleteModalOpen(false);
+    setLocation("/review");
+  };
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="border-b px-6 py-3">
@@ -172,6 +192,7 @@ export default function PostDetail() {
         onReject={() => setRejectModalOpen(true)}
         onSendToReview={() => setSendToReviewModalOpen(true)}
         onPostNow={() => setPostNowModalOpen(true)}
+        onDelete={() => setDeleteModalOpen(true)}
         onBack={() => setLocation("/review")}
         isPostingNow={postNowMutation.isPending}
       />
@@ -211,6 +232,16 @@ export default function PostDetail() {
         description="This will immediately send the post to Instagram via the webhook. Are you sure you want to post now?"
         confirmLabel="Yes, Post Now"
         onConfirm={handlePostNow}
+      />
+
+      <ConfirmationModal
+        open={deleteModalOpen}
+        onOpenChange={setDeleteModalOpen}
+        title="Delete Post"
+        description="This will permanently delete this post. This action cannot be undone."
+        confirmLabel="Delete Post"
+        variant="destructive"
+        onConfirm={handleDelete}
       />
     </div>
   );

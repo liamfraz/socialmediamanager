@@ -340,7 +340,7 @@ export default function ReviewPosts() {
                       createdAt={post.createdAt ? new Date(post.createdAt) : undefined}
                       onTimeChange={handleTimeChange}
                       onClick={() => handlePostClick(post.id)}
-                      showDateTime={activeFilter !== "pending"}
+                      showDateTime={activeFilter === "approved" || activeFilter === "posted"}
                       showCreatedDate={activeFilter === "pending"}
                       isNewlyCreated={newlyCreatedPosts.has(post.id)}
                     />

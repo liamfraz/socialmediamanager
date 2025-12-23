@@ -4,6 +4,7 @@ import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft,
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +35,7 @@ export default function TaggedPhotos() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string; description: string; tags: string[] } | null>(null);
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   
   const [formData, setFormData] = useState({
     photoId: "",
@@ -102,6 +104,11 @@ export default function TaggedPhotos() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] });
       setDeleteConfirmId(null);
+      setSelectedPhotos((prev) => {
+        const next = new Set(prev);
+        next.clear();
+        return next;
+      });
       toast({ title: "Photo deleted", description: "The photo has been removed from your library." });
     },
   });
@@ -146,6 +153,39 @@ export default function TaggedPhotos() {
 
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id);
+  };
+
+  const handleBulkDelete = async () => {
+    const idsToDelete = Array.from(selectedPhotos);
+    for (const id of idsToDelete) {
+      await apiRequest("DELETE", `/api/tagged-photos/${id}`);
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] });
+    setSelectedPhotos(new Set());
+    toast({ 
+      title: "Photos deleted", 
+      description: `${idsToDelete.length} photo(s) have been removed from your library.` 
+    });
+  };
+
+  const togglePhotoSelection = (id: string) => {
+    setSelectedPhotos((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedPhotos.size === paginatedPhotos.length) {
+      setSelectedPhotos(new Set());
+    } else {
+      setSelectedPhotos(new Set(paginatedPhotos.map((p) => p.id)));
+    }
   };
 
   const buildGoogleDriveUrl = (photoId: string) => {
@@ -202,6 +242,16 @@ export default function TaggedPhotos() {
                 data-testid="input-search-tags"
               />
             </div>
+            {selectedPhotos.size > 0 && (
+              <Button 
+                variant="destructive" 
+                onClick={handleBulkDelete}
+                data-testid="button-bulk-delete"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete ({selectedPhotos.size})
+              </Button>
+            )}
             <Button onClick={handleAdd} data-testid="button-add-photo">
               <Plus className="mr-2 h-4 w-4" />
               Add Photo
@@ -240,6 +290,13 @@ export default function TaggedPhotos() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={paginatedPhotos.length > 0 && selectedPhotos.size === paginatedPhotos.length}
+                      onCheckedChange={toggleSelectAll}
+                      data-testid="checkbox-select-all"
+                    />
+                  </TableHead>
                   <TableHead className="w-24">Preview</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Tags</TableHead>
@@ -249,6 +306,13 @@ export default function TaggedPhotos() {
               <TableBody>
                 {paginatedPhotos.map((photo) => (
                   <TableRow key={photo.id} data-testid={`row-photo-${photo.id}`}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedPhotos.has(photo.id)}
+                        onCheckedChange={() => togglePhotoSelection(photo.id)}
+                        data-testid={`checkbox-photo-${photo.id}`}
+                      />
+                    </TableCell>
                     <TableCell>
                       <button
                         type="button"

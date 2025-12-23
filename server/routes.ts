@@ -613,10 +613,22 @@ export async function registerRoutes(
 
   app.delete("/api/tagged-photos/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteTaggedPhoto(req.params.id);
+      const photoId = req.params.id;
+      const deleted = await storage.deleteTaggedPhoto(photoId);
       if (!deleted) {
         return res.status(404).json({ error: "Photo not found" });
       }
+      
+      // Send photo ID to n8n webhook (fire and forget)
+      const webhookUrl = "https://liamfraz3.app.n8n.cloud/webhook/5fca8a1e-2e8d-43d9-a2e7-363655728c98";
+      fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photoId }),
+      }).catch((err) => {
+        console.error("Failed to notify n8n of photo deletion:", err);
+      });
+      
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting photo:", error);

@@ -619,12 +619,10 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Photo not found" });
       }
       
-      // Send photo ID to n8n webhook (fire and forget)
-      const webhookUrl = "https://liamfraz3.app.n8n.cloud/webhook/5fca8a1e-2e8d-43d9-a2e7-363655728c98";
+      // Send photo ID to n8n webhook (fire and forget) - using GET as n8n expects
+      const webhookUrl = `https://liamfraz3.app.n8n.cloud/webhook/5fca8a1e-2e8d-43d9-a2e7-363655728c98?photoId=${encodeURIComponent(photoId)}`;
       fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photoId }),
+        method: "GET",
       }).catch((err) => {
         console.error("Failed to notify n8n of photo deletion:", err);
       });

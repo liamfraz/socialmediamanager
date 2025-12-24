@@ -158,7 +158,12 @@ export default function ReviewPosts() {
   }, [posts, activeFilter]);
 
   useEffect(() => {
-    setLocalPosts(filteredPosts);
+    // Only update if the post IDs or order have changed to prevent infinite loops
+    const filteredIds = filteredPosts.map(p => p.id).join(',');
+    const localIds = localPosts.map(p => p.id).join(',');
+    if (filteredIds !== localIds) {
+      setLocalPosts(filteredPosts);
+    }
   }, [filteredPosts]);
 
   const counts = useMemo(() => ({

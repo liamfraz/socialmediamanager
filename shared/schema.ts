@@ -38,10 +38,17 @@ export const insertPostSchema = createInsertSchema(posts).omit({
   status: postStatusEnum,
 });
 
+// Helper to convert string dates to Date objects
+const dateTransform = z.preprocess(
+  (val) => (typeof val === "string" ? new Date(val) : val),
+  z.date()
+);
+
 export const updatePostSchema = createInsertSchema(posts).omit({
   id: true,
 }).extend({
   status: postStatusEnum.optional(),
+  scheduledDate: dateTransform.optional(),
 }).partial();
 
 // Schema for reorder endpoint validation

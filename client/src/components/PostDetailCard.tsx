@@ -44,6 +44,7 @@ interface SortableImageProps {
 }
 
 function SortableImage({ id, url, index, onRemove }: SortableImageProps) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const {
     attributes,
     listeners,
@@ -73,18 +74,48 @@ function SortableImage({ id, url, index, onRemove }: SortableImageProps) {
         alt={`Thumbnail ${index + 1}`}
         className="h-12 w-12 rounded-md object-cover"
       />
-      <Button
-        variant="destructive"
-        size="icon"
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove(index);
-        }}
-        className="absolute -right-1 -top-1 h-5 w-5 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
-        data-testid={`button-remove-image-${index}`}
-      >
-        <X className="h-3 w-3" />
-      </Button>
+      {confirmDelete ? (
+        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+          <Button
+            variant="destructive"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(index);
+              setConfirmDelete(false);
+            }}
+            className="h-5 w-5 rounded-full"
+            data-testid={`button-confirm-remove-${index}`}
+          >
+            <Check className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              setConfirmDelete(false);
+            }}
+            className="h-5 w-5 rounded-full"
+            data-testid={`button-cancel-remove-${index}`}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      ) : (
+        <Button
+          variant="destructive"
+          size="icon"
+          onClick={(e) => {
+            e.stopPropagation();
+            setConfirmDelete(true);
+          }}
+          className="absolute -bottom-2 left-1/2 -translate-x-1/2 h-5 w-5 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+          data-testid={`button-remove-image-${index}`}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      )}
     </div>
   );
 }

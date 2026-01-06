@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Breadcrumb from "@/components/Breadcrumb";
@@ -78,6 +78,24 @@ export default function PostDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
     },
   });
+
+  // Auto-save collaborators when they change
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (editedCollaborators !== null && post) {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      saveTimeoutRef.current = setTimeout(() => {
+        updatePostMutation.mutate({ id: post.id, data: { collaborators: editedCollaborators } });
+      }, 500);
+    }
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [editedCollaborators, post?.id]);
 
   if (!post) {
     return (

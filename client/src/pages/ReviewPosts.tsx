@@ -285,7 +285,7 @@ export default function ReviewPosts() {
           <Input
             value={postTopic}
             onChange={(e) => setPostTopic(e.target.value)}
-            placeholder="e.g., Tips for small business owners"
+            placeholder="A bride holding flowers"
             data-testid="input-post-topic"
             onKeyDown={(e) => {
               if (e.key === "Enter") {

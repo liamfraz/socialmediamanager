@@ -22,6 +22,7 @@ export default function PostDetail() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [editedContent, setEditedContent] = useState<string | null>(null);
   const [editedImages, setEditedImages] = useState<string[] | null>(null);
+  const [editedCollaborators, setEditedCollaborators] = useState<string[] | null>(null);
 
   const { data: posts = [] } = useQuery<Post[]>({
     queryKey: ["/api/posts"],
@@ -52,7 +53,7 @@ export default function PostDetail() {
   });
 
   const updatePostMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { content?: string; images?: string[] } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { content?: string; images?: string[]; collaborators?: string[] } }) => {
       return apiRequest("PUT", `/api/posts/${id}`, data);
     },
     onSuccess: () => {
@@ -87,10 +88,11 @@ export default function PostDetail() {
   }
 
   const handleApprove = async () => {
-    if (editedContent !== null || editedImages !== null) {
-      const data: { content?: string; images?: string[] } = {};
+    if (editedContent !== null || editedImages !== null || editedCollaborators !== null) {
+      const data: { content?: string; images?: string[]; collaborators?: string[] } = {};
       if (editedContent !== null) data.content = editedContent;
       if (editedImages !== null) data.images = editedImages;
+      if (editedCollaborators !== null) data.collaborators = editedCollaborators;
       await updatePostMutation.mutateAsync({ id: post.id, data });
     }
 
@@ -117,10 +119,11 @@ export default function PostDetail() {
   };
 
   const handleSendToReview = async () => {
-    if (editedContent !== null || editedImages !== null) {
-      const data: { content?: string; images?: string[] } = {};
+    if (editedContent !== null || editedImages !== null || editedCollaborators !== null) {
+      const data: { content?: string; images?: string[]; collaborators?: string[] } = {};
       if (editedContent !== null) data.content = editedContent;
       if (editedImages !== null) data.images = editedImages;
+      if (editedCollaborators !== null) data.collaborators = editedCollaborators;
       await updatePostMutation.mutateAsync({ id: post.id, data });
     }
 
@@ -180,8 +183,10 @@ export default function PostDetail() {
             status={post.status as PostStatus}
             rowIndex={rowIndex}
             images={editedImages ?? post.images ?? undefined}
+            collaborators={editedCollaborators ?? post.collaborators ?? undefined}
             onContentChange={setEditedContent}
             onImagesChange={setEditedImages}
+            onCollaboratorsChange={setEditedCollaborators}
           />
         </div>
       </main>

@@ -29,7 +29,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Calendar, Clock, Plus, X, Search, Check } from "lucide-react";
+import { Calendar, Clock, Plus, X, Search, Check, Users } from "lucide-react";
 import { SiInstagram } from "react-icons/si";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
 import ImageCarousel from "./ImageCarousel";
@@ -123,8 +123,10 @@ interface PostDetailCardProps {
   status: PostStatus;
   rowIndex?: number;
   images?: string[];
+  collaborators?: string[];
   onContentChange?: (content: string) => void;
   onImagesChange?: (images: string[]) => void;
+  onCollaboratorsChange?: (collaborators: string[]) => void;
 }
 
 const INSTAGRAM_LIMIT = 2200;
@@ -142,11 +144,15 @@ export default function PostDetailCard({
   status,
   rowIndex = 0,
   images = [],
+  collaborators = [],
   onContentChange,
   onImagesChange,
+  onCollaboratorsChange,
 }: PostDetailCardProps) {
   const [editedContent, setEditedContent] = useState(content);
   const [currentImages, setCurrentImages] = useState<string[]>(images);
+  const [currentCollaborators, setCurrentCollaborators] = useState<string[]>(collaborators);
+  const [collaboratorInput, setCollaboratorInput] = useState("");
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
@@ -219,6 +225,22 @@ export default function PostDetailCard({
       onImagesChange?.(updated);
       return updated;
     });
+  };
+
+  const handleAddCollaborator = () => {
+    const username = collaboratorInput.trim().replace(/^@/, "");
+    if (username && !currentCollaborators.includes(username)) {
+      const updated = [...currentCollaborators, username];
+      setCurrentCollaborators(updated);
+      onCollaboratorsChange?.(updated);
+      setCollaboratorInput("");
+    }
+  };
+
+  const handleRemoveCollaborator = (username: string) => {
+    const updated = currentCollaborators.filter((c) => c !== username);
+    setCurrentCollaborators(updated);
+    onCollaboratorsChange?.(updated);
   };
 
   const sensors = useSensors(
@@ -329,6 +351,59 @@ export default function PostDetailCard({
               {editedContent.length} / {INSTAGRAM_LIMIT}
             </span>
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Users className="h-4 w-4" />
+            <span>Invite Collaborators</span>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              placeholder="@username"
+              value={collaboratorInput}
+              onChange={(e) => setCollaboratorInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddCollaborator();
+                }
+              }}
+              className="flex-1"
+              data-testid="input-collaborator"
+            />
+            <Button
+              variant="outline"
+              onClick={handleAddCollaborator}
+              disabled={!collaboratorInput.trim()}
+              data-testid="button-add-collaborator"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add
+            </Button>
+          </div>
+          {currentCollaborators.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {currentCollaborators.map((username) => (
+                <div
+                  key={username}
+                  className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-sm"
+                  data-testid={`collaborator-${username}`}
+                >
+                  <span>@{username}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4"
+                    onClick={() => handleRemoveCollaborator(username)}
+                    data-testid={`button-remove-collaborator-${username}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </CardContent>
 

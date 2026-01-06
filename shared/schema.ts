@@ -28,6 +28,7 @@ export const posts = pgTable("posts", {
   status: text("status").notNull().default("pending"),
   scheduledDate: timestamp("scheduled_date").notNull(),
   images: text("images").array(),
+  collaborators: text("collaborators").array(),
   order: integer("order").notNull(),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });

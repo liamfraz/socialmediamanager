@@ -613,20 +613,34 @@ export async function registerRoutes(
 
   app.delete("/api/tagged-photos/:id", async (req, res) => {
     try {
-      const photoId = req.params.id;
-      const deleted = await storage.deleteTaggedPhoto(photoId);
+      const dbId = req.params.id;
+      
+      // Fetch the photo first to get the Google Drive ID from the URL
+      const photo = await storage.getTaggedPhoto(dbId);
+      if (!photo) {
+        return res.status(404).json({ error: "Photo not found" });
+      }
+      
+      // Extract Google Drive file ID from the photoUrl
+      // Format: https://lh3.googleusercontent.com/d/{GOOGLE_DRIVE_ID}=w800-h800
+      let googleDriveId = "";
+      const urlMatch = photo.photoUrl.match(/\/d\/([^=]+)/);
+      if (urlMatch && urlMatch[1]) {
+        googleDriveId = urlMatch[1];
+      }
+      
+      const deleted = await storage.deleteTaggedPhoto(dbId);
       if (!deleted) {
         return res.status(404).json({ error: "Photo not found" });
       }
       
-      // Send photo ID to n8n webhook (fire and forget)
-      // Use webhook-test for testing, webhook for production
+      // Send Google Drive photo ID to n8n webhook (fire and forget)
       const webhookUrl = "https://liamfraz3.app.n8n.cloud/webhook/5fca8a1e-2e8d-43d9-a2e7-363655728c98";
-      console.log("Sending photo deletion to n8n:", { photoId, webhookUrl });
+      console.log("Sending photo deletion to n8n:", { googleDriveId, webhookUrl });
       fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photoId }),
+        body: JSON.stringify({ photoId: googleDriveId }),
       }).then((response) => {
         console.log("n8n webhook response:", response.status);
       }).catch((err) => {

@@ -26,8 +26,7 @@ export default function ReviewPosts() {
   const [localPosts, setLocalPosts] = useState<Post[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
-  const [postTopic, setPostTopic] = useState("");
-  const [postCount, setPostCount] = useState("1");
+  const [postTopics, setPostTopics] = useState<string[]>([""]);
   const [newlyCreatedPosts, setNewlyCreatedPosts] = useState<Set<string>>(new Set());
   const knownPostIdsRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
@@ -57,16 +56,35 @@ export default function ReviewPosts() {
   const isPaused = postingSettings?.isPaused === "true";
 
   const handleOpenGenerateDialog = () => {
-    setPostTopic("");
-    setPostCount("1");
+    setPostTopics([""]);
     setShowGenerateDialog(true);
   };
 
+  const handlePostCountChange = (value: string) => {
+    const count = parseInt(value);
+    setPostTopics(prev => {
+      if (count > prev.length) {
+        return [...prev, ...Array(count - prev.length).fill("")];
+      } else {
+        return prev.slice(0, count);
+      }
+    });
+  };
+
+  const handleTopicChange = (index: number, value: string) => {
+    setPostTopics(prev => {
+      const updated = [...prev];
+      updated[index] = value;
+      return updated;
+    });
+  };
+
   const handleGeneratePosts = async () => {
-    if (!postTopic.trim()) {
+    const filledTopics = postTopics.filter(t => t.trim());
+    if (filledTopics.length === 0) {
       toast({
         title: "Topic required",
-        description: "Please enter what you want the post to be about.",
+        description: "Please enter at least one topic for the post.",
         variant: "destructive",
       });
       return;
@@ -75,11 +93,11 @@ export default function ReviewPosts() {
     setShowGenerateDialog(false);
     setIsGenerating(true);
     try {
-      await apiRequest("POST", "/api/trigger-generate", { topic: postTopic.trim(), count: parseInt(postCount) });
+      await apiRequest("POST", "/api/trigger-generate", { topics: filledTopics.map(t => t.trim()) });
       
       toast({
         title: "Generation triggered",
-        description: "Posts are being generated. They will appear shortly.",
+        description: `${filledTopics.length} post${filledTopics.length > 1 ? 's are' : ' is'} being generated. They will appear shortly.`,
       });
       
       // Refresh posts after a short delay to give n8n time to process
@@ -94,7 +112,7 @@ export default function ReviewPosts() {
       });
     } finally {
       setIsGenerating(false);
-      setPostTopic("");
+      setPostTopics([""]);
     }
   };
 
@@ -283,24 +301,13 @@ export default function ReviewPosts() {
           <DialogHeader>
             <DialogTitle>Generate Posts</DialogTitle>
             <DialogDescription>
-              What do you want the post to be about?
+              What do you want {postTopics.length === 1 ? 'the post' : 'each post'} to be about?
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <Input
-              value={postTopic}
-              onChange={(e) => setPostTopic(e.target.value)}
-              placeholder="A bride holding flowers"
-              data-testid="input-post-topic"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleGeneratePosts();
-                }
-              }}
-            />
             <div className="flex items-center gap-3">
               <Label htmlFor="post-count" className="whitespace-nowrap">Number of posts</Label>
-              <Select value={postCount} onValueChange={setPostCount}>
+              <Select value={String(postTopics.length)} onValueChange={handlePostCountChange}>
                 <SelectTrigger id="post-count" className="w-24" data-testid="select-post-count">
                   <SelectValue />
                 </SelectTrigger>
@@ -312,6 +319,26 @@ export default function ReviewPosts() {
                   <SelectItem value="10">10</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {postTopics.map((topic, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  {postTopics.length > 1 && (
+                    <span className="text-sm text-muted-foreground w-6">{index + 1}.</span>
+                  )}
+                  <Input
+                    value={topic}
+                    onChange={(e) => handleTopicChange(index, e.target.value)}
+                    placeholder="A bride holding flowers"
+                    data-testid={`input-post-topic-${index}`}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && index === postTopics.length - 1) {
+                        handleGeneratePosts();
+                      }
+                    }}
+                  />
+                </div>
+              ))}
             </div>
           </div>
           <DialogFooter>

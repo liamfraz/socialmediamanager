@@ -259,19 +259,24 @@ export async function registerRoutes(
   // Trigger n8n webhook to generate posts
   app.post("/api/trigger-generate", async (req, res) => {
     try {
-      const { topic, count } = req.body;
+      const { topics } = req.body;
       const n8nWebhookUrl = "https://liamfraz3.app.n8n.cloud/webhook/0d25b57d-4af4-4526-8bfe-2d89247c713f";
       
-      const response = await fetch(n8nWebhookUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ topic: topic || "general content", count: count || 1 }),
-      });
+      // Send each topic as a separate request to n8n
+      const topicsArray = Array.isArray(topics) ? topics : [topics || "general content"];
       
-      console.log("n8n webhook triggered, status:", response.status);
-      res.json({ success: true, message: "Generation triggered" });
+      for (const topic of topicsArray) {
+        await fetch(n8nWebhookUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ topic }),
+        });
+      }
+      
+      console.log("n8n webhook triggered for", topicsArray.length, "topics");
+      res.json({ success: true, message: "Generation triggered", count: topicsArray.length });
     } catch (error) {
       console.error("Error triggering n8n webhook:", error);
       res.status(500).json({ error: "Failed to trigger generation" });

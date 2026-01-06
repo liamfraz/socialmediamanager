@@ -75,12 +75,14 @@ function SortableImage({ id, url, index, onRemove }: SortableImageProps) {
         className="h-12 w-12 rounded-md object-cover"
       />
       {confirmDelete ? (
-        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+        <div 
+          className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-1"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           <Button
             variant="destructive"
             size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
+            onClick={() => {
               onRemove(index);
               setConfirmDelete(false);
             }}
@@ -92,10 +94,7 @@ function SortableImage({ id, url, index, onRemove }: SortableImageProps) {
           <Button
             variant="outline"
             size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              setConfirmDelete(false);
-            }}
+            onClick={() => setConfirmDelete(false)}
             className="h-5 w-5 rounded-full"
             data-testid={`button-cancel-remove-${index}`}
           >
@@ -106,10 +105,8 @@ function SortableImage({ id, url, index, onRemove }: SortableImageProps) {
         <Button
           variant="destructive"
           size="icon"
-          onClick={(e) => {
-            e.stopPropagation();
-            setConfirmDelete(true);
-          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => setConfirmDelete(true)}
           className="absolute -bottom-2 left-1/2 -translate-x-1/2 h-5 w-5 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
           data-testid={`button-remove-image-${index}`}
         >

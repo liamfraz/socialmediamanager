@@ -1,12 +1,23 @@
-import { useState, useRef } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, Plus, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Calendar, Clock, Plus, X, Search, Check } from "lucide-react";
 import { SiInstagram } from "react-icons/si";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
 import ImageCarousel from "./ImageCarousel";
 import { format, addDays } from "date-fns";
+import type { TaggedPhoto } from "@shared/schema";
 
 interface PostDetailCardProps {
   id: string;
@@ -38,12 +49,39 @@ export default function PostDetailCard({
 }: PostDetailCardProps) {
   const [editedContent, setEditedContent] = useState(content);
   const [currentImages, setCurrentImages] = useState<string[]>(images);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   
+  const { data: taggedPhotos = [] } = useQuery<TaggedPhoto[]>({
+    queryKey: ["/api/tagged-photos"],
+  });
+
   const scheduledDate = getScheduledDate(rowIndex);
   const remaining = INSTAGRAM_LIMIT - editedContent.length;
   const isNearLimit = remaining < INSTAGRAM_LIMIT * 0.1;
   const isOverLimit = remaining < 0;
+
+  const filteredPhotos = useMemo(() => {
+    if (!searchTerm.trim()) return taggedPhotos;
+    const searchWords = searchTerm.toLowerCase().trim().split(/\s+/);
+    return taggedPhotos.filter((photo) => {
+      if (!photo.tags || photo.tags.length === 0) return false;
+      const photoTags = photo.tags.map((tag) => tag.toLowerCase());
+      return searchWords.every((word) =>
+        photoTags.some((tag) => tag.includes(word))
+      );
+    });
+  }, [taggedPhotos, searchTerm]);
+
+  const getDirectImageUrl = (url: string) => {
+    if (url.includes("lh3.googleusercontent.com")) return url;
+    const driveMatch = url.match(/\/d\/([^/]+)/);
+    if (driveMatch) {
+      return `https://lh3.googleusercontent.com/d/${driveMatch[1]}=w800-h800`;
+    }
+    return url;
+  };
 
   const handleContentChange = (value: string) => {
     setEditedContent(value);
@@ -51,27 +89,30 @@ export default function PostDetailCard({
   };
 
   const handleAddPhoto = () => {
-    fileInputRef.current?.click();
+    setSelectedPhotos(new Set());
+    setSearchTerm("");
+    setPhotoDialogOpen(true);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const newUrl = event.target?.result as string;
-        setCurrentImages((prev) => {
-          const updated = [...prev, newUrl];
-          onImagesChange?.(updated);
-          return updated;
-        });
-      };
-      reader.readAsDataURL(file);
+  const togglePhotoSelection = (photoUrl: string) => {
+    setSelectedPhotos((prev) => {
+      const next = new Set(prev);
+      if (next.has(photoUrl)) {
+        next.delete(photoUrl);
+      } else {
+        next.add(photoUrl);
+      }
+      return next;
     });
+  };
 
-    e.target.value = "";
+  const handleAddSelectedPhotos = () => {
+    const newUrls = Array.from(selectedPhotos).map(getDirectImageUrl);
+    const updated = [...currentImages, ...newUrls];
+    setCurrentImages(updated);
+    onImagesChange?.(updated);
+    setPhotoDialogOpen(false);
+    setSelectedPhotos(new Set());
   };
 
   const handleRemoveImage = (index: number) => {
@@ -120,15 +161,6 @@ export default function PostDetailCard({
               <Plus className="mr-2 h-4 w-4" />
               Add Photo
             </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleFileChange}
-              className="hidden"
-              data-testid="input-file-upload"
-            />
             <span className="text-xs text-muted-foreground">
               {currentImages.length} photo{currentImages.length !== 1 ? "s" : ""} attached
             </span>
@@ -182,6 +214,74 @@ export default function PostDetailCard({
           </div>
         </div>
       </CardContent>
+
+      <Dialog open={photoDialogOpen} onOpenChange={setPhotoDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Select Photos</DialogTitle>
+          </DialogHeader>
+          
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search by tags..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+              data-testid="input-photo-search"
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {filteredPhotos.length === 0 ? (
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                No photos found
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-3">
+                {filteredPhotos.map((photo) => {
+                  const imageUrl = getDirectImageUrl(photo.photoUrl);
+                  const isSelected = selectedPhotos.has(photo.photoUrl);
+                  return (
+                    <div
+                      key={photo.id}
+                      className={`relative cursor-pointer rounded-md overflow-visible hover-elevate ${
+                        isSelected ? "ring-2 ring-primary" : ""
+                      }`}
+                      onClick={() => togglePhotoSelection(photo.photoUrl)}
+                      data-testid={`photo-select-${photo.id}`}
+                    >
+                      <img
+                        src={imageUrl}
+                        alt={photo.description || "Photo"}
+                        className="aspect-square w-full rounded-md object-cover"
+                      />
+                      {isSelected && (
+                        <div className="absolute top-1 right-1 rounded-full bg-primary p-0.5">
+                          <Check className="h-3 w-3 text-primary-foreground" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setPhotoDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddSelectedPhotos}
+              disabled={selectedPhotos.size === 0}
+              data-testid="button-confirm-add-photos"
+            >
+              Add {selectedPhotos.size} Photo{selectedPhotos.size !== 1 ? "s" : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

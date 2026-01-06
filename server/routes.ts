@@ -726,6 +726,7 @@ export async function registerRoutes(
           postId: post.id,
           caption: post.content,
           images: post.images || [],
+          collaborators: post.collaborators || [],
           scheduledDate: post.scheduledDate,
           manualPost: true,
         }),
@@ -819,6 +820,7 @@ export async function registerRoutes(
           postId: post.id,
           caption: post.content,
           images: post.images || [],
+          collaborators: post.collaborators || [],
           scheduledDate: post.scheduledDate,
         }),
       });

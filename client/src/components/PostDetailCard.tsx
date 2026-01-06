@@ -29,7 +29,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Calendar, Clock, Plus, X, Search, Check, GripVertical } from "lucide-react";
+import { Calendar, Clock, Plus, X, Search, Check } from "lucide-react";
 import { SiInstagram } from "react-icons/si";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
 import ImageCarousel from "./ImageCarousel";
@@ -64,15 +64,10 @@ function SortableImage({ id, url, index, onRemove }: SortableImageProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className="group relative"
+      className="group relative cursor-grab active:cursor-grabbing"
+      {...attributes}
+      {...listeners}
     >
-      <div
-        {...attributes}
-        {...listeners}
-        className="absolute -left-1 top-1/2 -translate-y-1/2 cursor-grab rounded bg-background/80 p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-      >
-        <GripVertical className="h-3 w-3 text-muted-foreground" />
-      </div>
       <img
         src={url}
         alt={`Thumbnail ${index + 1}`}
@@ -81,7 +76,10 @@ function SortableImage({ id, url, index, onRemove }: SortableImageProps) {
       <Button
         variant="destructive"
         size="icon"
-        onClick={() => onRemove(index)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove(index);
+        }}
         className="absolute -right-1 -top-1 h-5 w-5 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
         data-testid={`button-remove-image-${index}`}
       >

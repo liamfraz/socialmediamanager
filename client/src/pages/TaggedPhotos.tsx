@@ -348,7 +348,7 @@ export default function TaggedPhotos() {
                       <div className="flex flex-wrap gap-1">
                         {photo.tags?.slice(0, 5).map((tag, idx) => (
                           <Badge key={idx} variant="secondary" className="text-xs">
-                            {tag}
+                            {tag.charAt(0).toUpperCase() + tag.slice(1)}
                           </Badge>
                         ))}
                         {(photo.tags?.length || 0) > 5 && (
@@ -554,7 +554,7 @@ export default function TaggedPhotos() {
                   <div className="flex flex-wrap gap-2">
                     {previewPhoto.tags.map((tag, idx) => (
                       <Badge key={idx} variant="secondary">
-                        {tag}
+                        {tag.charAt(0).toUpperCase() + tag.slice(1)}
                       </Badge>
                     ))}
                   </div>

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { useLocation } from "wouter";
+import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ import Breadcrumb from "@/components/Breadcrumb";
 const ITEMS_PER_PAGE = 50;
 
 export default function TaggedPhotos() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState<TaggedPhoto | null>(null);
@@ -113,6 +115,25 @@ export default function TaggedPhotos() {
     },
   });
 
+  const createPostMutation = useMutation({
+    mutationFn: (images: string[]) =>
+      apiRequest("POST", "/api/posts", {
+        content: "",
+        status: "draft",
+        scheduledDate: new Date().toISOString(),
+        images,
+      }),
+    onSuccess: (response: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
+      setSelectedPhotos(new Set());
+      toast({ title: "Post created", description: "Write your caption to complete the post." });
+      setLocation(`/post/${response.id}`);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create post.", variant: "destructive" });
+    },
+  });
+
   const resetForm = () => {
     setFormData({ photoId: "", photoUrl: "", description: "", tags: "" });
   };
@@ -194,6 +215,12 @@ export default function TaggedPhotos() {
     }
   };
 
+  const handleCreatePost = () => {
+    const selectedPhotoObjects = photos.filter((p) => selectedPhotos.has(p.id));
+    const imageUrls = selectedPhotoObjects.map((p) => getDirectImageUrl(p.photoUrl));
+    createPostMutation.mutate(imageUrls);
+  };
+
   const buildGoogleDriveUrl = (photoId: string) => {
     return `https://lh3.googleusercontent.com/d/${photoId}=w800-h800`;
   };
@@ -249,14 +276,24 @@ export default function TaggedPhotos() {
               />
             </div>
             {selectedPhotos.size > 0 && (
-              <Button 
-                variant="destructive" 
-                onClick={handleBulkDelete}
-                data-testid="button-bulk-delete"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete ({selectedPhotos.size})
-              </Button>
+              <>
+                <Button 
+                  onClick={handleCreatePost}
+                  disabled={createPostMutation.isPending}
+                  data-testid="button-create-post"
+                >
+                  <FileEdit className="mr-2 h-4 w-4" />
+                  Create Post ({selectedPhotos.size})
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={handleBulkDelete}
+                  data-testid="button-bulk-delete"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete ({selectedPhotos.size})
+                </Button>
+              </>
             )}
             <Button onClick={handleAdd} data-testid="button-add-photo">
               <Plus className="mr-2 h-4 w-4" />

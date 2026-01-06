@@ -109,7 +109,7 @@ export default function Dashboard() {
       return apiRequest("PUT", `/api/posts/${postId}`, { scheduledDate: scheduledDate.toISOString() });
     },
     onSuccess: () => {
-      toast({ title: "Time updated", description: "The scheduled time has been updated." });
+      toast({ title: "Schedule updated", description: "The scheduled date and time have been updated." });
     },
   });
 

@@ -4,8 +4,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { GripVertical, Images, Clock, Loader2, CheckCircle } from "lucide-react";
+import { GripVertical, Images, Clock, Calendar, Loader2, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 
 interface DraggablePostCardProps {
@@ -61,7 +62,16 @@ export default function DraggablePostCard({
     ? scheduledDate 
     : new Date();
   
+  const [editDate, setEditDate] = useState(format(validDate, "yyyy-MM-dd"));
   const [editTime, setEditTime] = useState(format(validDate, "HH:mm"));
+  
+  // Update edit fields when popover opens
+  useEffect(() => {
+    if (timePopoverOpen) {
+      setEditDate(format(validDate, "yyyy-MM-dd"));
+      setEditTime(format(validDate, "HH:mm"));
+    }
+  }, [timePopoverOpen, validDate]);
   
   const {
     attributes,
@@ -85,9 +95,9 @@ export default function DraggablePostCard({
   const time = format(validDate, "h:mm a");
 
   const handleTimeSubmit = () => {
+    const [year, month, day] = editDate.split("-").map(Number);
     const [hours, minutes] = editTime.split(":").map(Number);
-    const newDate = new Date(validDate);
-    newDate.setHours(hours, minutes, 0, 0);
+    const newDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
     onTimeChange?.(id, newDate);
     setTimePopoverOpen(false);
   };
@@ -124,19 +134,34 @@ export default function DraggablePostCard({
               }`}>{time}</span>
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-48 p-3" align="start">
+          <PopoverContent className="w-56 p-3" align="start">
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Set Time</span>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Set Date & Time</span>
               </div>
-              <Input
-                type="time"
-                value={editTime}
-                onChange={(e) => setEditTime(e.target.value)}
-                className="w-full"
-                data-testid={`input-time-${id}`}
-              />
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Date</Label>
+                  <Input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full"
+                    data-testid={`input-date-${id}`}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Time</Label>
+                  <Input
+                    type="time"
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
+                    className="w-full"
+                    data-testid={`input-time-${id}`}
+                  />
+                </div>
+              </div>
               <div className="flex justify-end gap-2">
                 <Button
                   size="sm"

@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Sparkles, Loader2, Pause, Play, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +27,7 @@ export default function ReviewPosts() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [postTopic, setPostTopic] = useState("");
+  const [postCount, setPostCount] = useState("1");
   const [newlyCreatedPosts, setNewlyCreatedPosts] = useState<Set<string>>(new Set());
   const knownPostIdsRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
@@ -55,6 +58,7 @@ export default function ReviewPosts() {
 
   const handleOpenGenerateDialog = () => {
     setPostTopic("");
+    setPostCount("1");
     setShowGenerateDialog(true);
   };
 
@@ -71,7 +75,7 @@ export default function ReviewPosts() {
     setShowGenerateDialog(false);
     setIsGenerating(true);
     try {
-      await apiRequest("POST", "/api/trigger-generate", { topic: postTopic.trim() });
+      await apiRequest("POST", "/api/trigger-generate", { topic: postTopic.trim(), count: parseInt(postCount) });
       
       toast({
         title: "Generation triggered",
@@ -282,17 +286,34 @@ export default function ReviewPosts() {
               What do you want the post to be about?
             </DialogDescription>
           </DialogHeader>
-          <Input
-            value={postTopic}
-            onChange={(e) => setPostTopic(e.target.value)}
-            placeholder="A bride holding flowers"
-            data-testid="input-post-topic"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleGeneratePosts();
-              }
-            }}
-          />
+          <div className="space-y-4">
+            <Input
+              value={postTopic}
+              onChange={(e) => setPostTopic(e.target.value)}
+              placeholder="A bride holding flowers"
+              data-testid="input-post-topic"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleGeneratePosts();
+                }
+              }}
+            />
+            <div className="flex items-center gap-3">
+              <Label htmlFor="post-count" className="whitespace-nowrap">Number of posts</Label>
+              <Select value={postCount} onValueChange={setPostCount}>
+                <SelectTrigger id="post-count" className="w-24" data-testid="select-post-count">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1</SelectItem>
+                  <SelectItem value="2">2</SelectItem>
+                  <SelectItem value="3">3</SelectItem>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowGenerateDialog(false)}>
               Cancel

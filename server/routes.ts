@@ -259,7 +259,7 @@ export async function registerRoutes(
   // Trigger n8n webhook to generate posts
   app.post("/api/trigger-generate", async (req, res) => {
     try {
-      const { topic } = req.body;
+      const { topic, count } = req.body;
       const n8nWebhookUrl = "https://liamfraz3.app.n8n.cloud/webhook/0d25b57d-4af4-4526-8bfe-2d89247c713f";
       
       const response = await fetch(n8nWebhookUrl, {
@@ -267,7 +267,7 @@ export async function registerRoutes(
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ topic: topic || "general content" }),
+        body: JSON.stringify({ topic: topic || "general content", count: count || 1 }),
       });
       
       console.log("n8n webhook triggered, status:", response.status);

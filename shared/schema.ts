@@ -32,17 +32,19 @@ export const posts = pgTable("posts", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
-export const insertPostSchema = createInsertSchema(posts).omit({
-  id: true,
-}).extend({
-  status: postStatusEnum,
-});
-
 // Helper to convert string dates to Date objects
 const dateTransform = z.preprocess(
   (val) => (typeof val === "string" ? new Date(val) : val),
   z.date()
 );
+
+export const insertPostSchema = createInsertSchema(posts).omit({
+  id: true,
+}).extend({
+  status: postStatusEnum,
+  scheduledDate: dateTransform,
+  order: z.number().int().optional(),
+});
 
 export const updatePostSchema = createInsertSchema(posts).omit({
   id: true,

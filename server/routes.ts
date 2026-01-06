@@ -84,7 +84,15 @@ export async function registerRoutes(
   app.post("/api/posts", async (req, res) => {
     try {
       const validatedData = insertPostSchema.parse(req.body);
-      const post = await storage.createPost(validatedData);
+      
+      // Calculate order if not provided
+      if (validatedData.order === undefined) {
+        const allPosts = await storage.getAllPosts();
+        const maxOrder = allPosts.length > 0 ? Math.max(...allPosts.map(p => p.order)) : 0;
+        validatedData.order = maxOrder + 1;
+      }
+      
+      const post = await storage.createPost(validatedData as any);
       res.status(201).json(post);
     } catch (error) {
       if (error instanceof z.ZodError) {

@@ -116,18 +116,20 @@ export default function TaggedPhotos() {
   });
 
   const createPostMutation = useMutation({
-    mutationFn: (images: string[]) =>
-      apiRequest("POST", "/api/posts", {
+    mutationFn: async (images: string[]) => {
+      const response = await apiRequest("POST", "/api/posts", {
         content: "",
         status: "draft",
         scheduledDate: new Date().toISOString(),
         images,
-      }),
-    onSuccess: (response: any) => {
+      });
+      return response.json();
+    },
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       setSelectedPhotos(new Set());
       toast({ title: "Post created", description: "Write your caption to complete the post." });
-      setLocation(`/post/${response.id}`);
+      setLocation(`/post/${data.id}`);
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to create post.", variant: "destructive" });

@@ -1,5 +1,22 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  horizontalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -12,12 +29,67 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Calendar, Clock, Plus, X, Search, Check } from "lucide-react";
+import { Calendar, Clock, Plus, X, Search, Check, GripVertical } from "lucide-react";
 import { SiInstagram } from "react-icons/si";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
 import ImageCarousel from "./ImageCarousel";
 import { format, addDays } from "date-fns";
 import type { TaggedPhoto } from "@shared/schema";
+
+interface SortableImageProps {
+  id: string;
+  url: string;
+  index: number;
+  onRemove: (index: number) => void;
+}
+
+function SortableImage({ id, url, index, onRemove }: SortableImageProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : 1,
+    opacity: isDragging ? 0.8 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="group relative"
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute -left-1 top-1/2 -translate-y-1/2 cursor-grab rounded bg-background/80 p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+      >
+        <GripVertical className="h-3 w-3 text-muted-foreground" />
+      </div>
+      <img
+        src={url}
+        alt={`Thumbnail ${index + 1}`}
+        className="h-12 w-12 rounded-md object-cover"
+      />
+      <Button
+        variant="destructive"
+        size="icon"
+        onClick={() => onRemove(index)}
+        className="absolute -right-1 -top-1 h-5 w-5 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+        data-testid={`button-remove-image-${index}`}
+      >
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
+  );
+}
 
 interface PostDetailCardProps {
   id: string;
@@ -123,6 +195,26 @@ export default function PostDetailCard({
     });
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const imageIds = currentImages.map((url, idx) => `image-${idx}-${url.slice(-20)}`);
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = imageIds.indexOf(active.id as string);
+      const newIndex = imageIds.indexOf(over.id as string);
+      const newOrder = arrayMove(currentImages, oldIndex, newIndex);
+      setCurrentImages(newOrder);
+      onImagesChange?.(newOrder);
+    }
+  };
+
   return (
     <Card className="w-full" data-testid={`card-post-detail-${id}`}>
       <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 border-b pb-4">
@@ -167,26 +259,25 @@ export default function PostDetailCard({
           </div>
 
           {currentImages.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {currentImages.map((img, idx) => (
-                <div key={idx} className="group relative">
-                  <img
-                    src={img}
-                    alt={`Thumbnail ${idx + 1}`}
-                    className="h-12 w-12 rounded-md object-cover"
-                  />
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    onClick={() => handleRemoveImage(idx)}
-                    className="absolute -right-1 -top-1 h-5 w-5 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
-                    data-testid={`button-remove-image-${idx}`}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={imageIds} strategy={horizontalListSortingStrategy}>
+                <div className="flex flex-wrap gap-3">
+                  {currentImages.map((img, idx) => (
+                    <SortableImage
+                      key={imageIds[idx]}
+                      id={imageIds[idx]}
+                      url={img}
+                      index={idx}
+                      onRemove={handleRemoveImage}
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
           )}
         </div>
 

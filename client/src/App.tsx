@@ -1,10 +1,11 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
@@ -13,8 +14,10 @@ import PostedPosts from "@/pages/PostedPosts";
 import PostDetail from "@/pages/PostDetail";
 import Account from "@/pages/Account";
 import TaggedPhotos from "@/pages/TaggedPhotos";
+import { Loader2 } from "lucide-react";
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  const { user, logout } = useAuth();
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -27,7 +30,16 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col flex-1 overflow-hidden">
           <header className="flex items-center justify-between gap-4 border-b bg-background px-6 py-4">
             <h1 className="text-2xl font-bold" data-testid="text-app-title">Socials Post Manager</h1>
-            <span className="text-sm text-muted-foreground" data-testid="text-account-name">John Doe</span>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground" data-testid="text-account-name">{user?.username}</span>
+              <button
+                onClick={logout}
+                className="text-sm text-muted-foreground hover:text-foreground"
+                data-testid="button-logout"
+              >
+                Sign out
+              </button>
+            </div>
           </header>
           <main className="flex-1 overflow-auto">
             {children}
@@ -42,6 +54,7 @@ function AuthenticatedRoutes() {
   return (
     <AuthenticatedLayout>
       <Switch>
+        <Route path="/" component={Dashboard} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/review" component={ReviewPosts} />
         <Route path="/posted" component={PostedPosts} />
@@ -54,14 +67,31 @@ function AuthenticatedRoutes() {
   );
 }
 
-function App() {
-  const [location] = useLocation();
-  const isLoginPage = location === "/";
+function AppContent() {
+  const { user, isLoading } = useAuth();
 
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  return <AuthenticatedRoutes />;
+}
+
+function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        {isLoginPage ? <Login /> : <AuthenticatedRoutes />}
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

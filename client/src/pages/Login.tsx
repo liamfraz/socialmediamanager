@@ -1,29 +1,56 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 import flowtechLogo from "@assets/Screenshot_2025-11-29_at_1.38.06_pm_1765271076550.png";
 
 export default function Login() {
-  const [, setLocation] = useLocation();
+  const { login, register } = useAuth();
+  const { toast } = useToast();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username.trim() || !password.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter both username and password",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
-    
-    setTimeout(() => {
-      setIsLoading(false);
-      if (username === "liam" && password === "Password") {
-        setLocation("/dashboard");
+    try {
+      if (isRegisterMode) {
+        await register(username, password);
+        toast({
+          title: "Account created",
+          description: "Welcome! Your account has been created.",
+        });
       } else {
-        alert("Invalid username or password");
+        await login(username, password);
+        toast({
+          title: "Welcome back",
+          description: "You have been logged in.",
+        });
       }
-    }, 300);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -45,7 +72,9 @@ export default function Login() {
             Flowtech Advisory
           </CardTitle>
           <CardDescription data-testid="text-login-description">
-            Sign in to manage your social media posts
+            {isRegisterMode
+              ? "Create your account to get started"
+              : "Sign in to manage your social media posts"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -59,6 +88,7 @@ export default function Login() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 data-testid="input-username"
+                disabled={isLoading}
                 required
               />
             </div>
@@ -71,6 +101,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 data-testid="input-password"
+                disabled={isLoading}
                 required
               />
             </div>
@@ -80,9 +111,37 @@ export default function Login() {
               disabled={isLoading}
               data-testid="button-login"
             >
-              {isLoading ? "Signing in..." : "Sign In"}
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isRegisterMode ? "Create Account" : "Sign In"}
             </Button>
           </form>
+          <div className="mt-4 text-center text-sm text-muted-foreground">
+            {isRegisterMode ? (
+              <>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  className="text-primary underline-offset-4 hover:underline"
+                  onClick={() => setIsRegisterMode(false)}
+                  data-testid="link-signin"
+                >
+                  Sign in
+                </button>
+              </>
+            ) : (
+              <>
+                Don't have an account?{" "}
+                <button
+                  type="button"
+                  className="text-primary underline-offset-4 hover:underline"
+                  onClick={() => setIsRegisterMode(true)}
+                  data-testid="link-register"
+                >
+                  Create one
+                </button>
+              </>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

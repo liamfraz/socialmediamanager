@@ -96,9 +96,9 @@ export async function registerRoutes(
     }
   });
 
-  // Helper function to recalculate scheduled dates for all approved posts
-  async function recalculateApprovedPostsDates() {
-    const allPosts = await storage.getAllPosts();
+  // Helper function to recalculate scheduled dates for approved posts (user-scoped)
+  async function recalculateApprovedPostsDates(userId?: string) {
+    const allPosts = await storage.getAllPosts(userId);
     const approvedPosts = allPosts
       .filter(p => p.status === "approved")
       .sort((a, b) => a.order - b.order);
@@ -123,10 +123,20 @@ export async function registerRoutes(
   // Reorder posts - MUST be before /api/posts/:id to avoid matching "reorder" as an id
   app.put("/api/posts/reorder", requireAuth, async (req, res) => {
     try {
+      const userId = req.session.userId!;
       const validatedData = reorderSchema.parse(req.body);
+      
+      // Validate that all post IDs belong to the current user
+      const userPosts = await storage.getAllPosts(userId);
+      const userPostIds = new Set(userPosts.map(p => p.id));
+      const invalidIds = validatedData.updates.filter(u => !userPostIds.has(u.id));
+      if (invalidIds.length > 0) {
+        return res.status(403).json({ error: "Cannot reorder posts you don't own" });
+      }
+      
       await storage.reorderPosts(validatedData.updates);
-      // Recalculate dates after reordering
-      await recalculateApprovedPostsDates();
+      // Recalculate dates after reordering (user-scoped)
+      await recalculateApprovedPostsDates(userId);
       res.json({ success: true });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -213,9 +223,9 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Post not found" });
       }
       
-      // Recalculate all approved posts dates after status change
+      // Recalculate all approved posts dates after status change (user-scoped)
       if (validatedStatus === "approved" || validatedStatus === "rejected" || validatedStatus === "pending") {
-        await recalculateApprovedPostsDates();
+        await recalculateApprovedPostsDates(userId);
       }
       
       // Fetch updated post with new scheduled date
@@ -786,10 +796,11 @@ export async function registerRoutes(
     }
   });
 
-  // Recalculate dates endpoint (for initial setup)
-  app.post("/api/posts/recalculate-dates", async (_req, res) => {
+  // Recalculate dates endpoint (for initial setup) - user-scoped
+  app.post("/api/posts/recalculate-dates", requireAuth, async (req, res) => {
     try {
-      await recalculateApprovedPostsDates();
+      const userId = req.session.userId!;
+      await recalculateApprovedPostsDates(userId);
       res.json({ success: true, message: "Dates recalculated" });
     } catch (error) {
       console.error("Error recalculating dates:", error);
@@ -797,11 +808,12 @@ export async function registerRoutes(
     }
   });
 
-  // Manual post endpoint - sends a post to webhook immediately
-  app.post("/api/posts/:id/post-now", async (req, res) => {
+  // Manual post endpoint - sends a post to webhook immediately (user-scoped)
+  app.post("/api/posts/:id/post-now", requireAuth, async (req, res) => {
     try {
+      const userId = req.session.userId!;
       const post = await storage.getPost(req.params.id);
-      if (!post) {
+      if (!post || post.userId !== userId) {
         return res.status(404).json({ error: "Post not found" });
       }
 
@@ -848,9 +860,9 @@ export async function registerRoutes(
 
         if (verified) {
           // Move post to "posted" status only after n8n confirms
-          await storage.updatePostStatus(post.id, "posted");
-          // Recalculate remaining approved posts dates
-          await recalculateApprovedPostsDates();
+          await storage.updatePostStatus(post.id, "posted", userId);
+          // Recalculate remaining approved posts dates (user-scoped)
+          await recalculateApprovedPostsDates(userId);
           console.log(`Manual post ${post.id} verified by n8n and moved to 'posted' status`);
           res.json({ success: true, message: responseMessage || "Post sent and confirmed" });
         } else {
@@ -876,14 +888,20 @@ export async function registerRoutes(
       if (settings.isPaused === "true") {
         // Move all due posts to next day at 5pm Melbourne (6am UTC)
         const duePosts = await storage.getDuePosts();
+        const affectedUserIds = new Set<string | null>();
         for (const post of duePosts) {
           const nextDay = new Date();
           nextDay.setUTCDate(nextDay.getUTCDate() + 1);
           nextDay.setUTCHours(6, 0, 0, 0); // 5pm Melbourne = 6am UTC
           await storage.updatePost(post.id, { scheduledDate: nextDay });
+          affectedUserIds.add(post.userId);
         }
-        // Recalculate all dates to maintain sequence
-        await recalculateApprovedPostsDates();
+        // Recalculate dates per-tenant to maintain sequence
+        for (const userId of affectedUserIds) {
+          if (userId) {
+            await recalculateApprovedPostsDates(userId);
+          }
+        }
         console.log(`Posting paused. Moved ${duePosts.length} posts to next day.`);
         return;
       }
@@ -939,9 +957,9 @@ export async function registerRoutes(
 
         if (verified) {
           // Move post to "posted" status only after n8n confirms
-          await storage.updatePostStatus(post.id, "posted");
-          // Recalculate remaining approved posts dates
-          await recalculateApprovedPostsDates();
+          await storage.updatePostStatus(post.id, "posted", post.userId || undefined);
+          // Recalculate remaining approved posts dates for this user
+          await recalculateApprovedPostsDates(post.userId || undefined);
           console.log(`Post ${post.id} confirmed by n8n and moved to 'posted' status`);
         } else {
           console.log(`Post ${post.id} sent but not confirmed by n8n. Keeping as approved for retry.`);

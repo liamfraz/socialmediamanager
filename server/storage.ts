@@ -7,17 +7,17 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   
-  // Post operations
-  getAllPosts(): Promise<Post[]>;
+  // Post operations - userId scoped
+  getAllPosts(userId?: string): Promise<Post[]>;
   getPost(id: string): Promise<Post | undefined>;
   createPost(post: InsertPost): Promise<Post>;
   updatePost(id: string, data: Partial<InsertPost>): Promise<Post | undefined>;
-  updatePostStatus(id: string, status: string): Promise<Post | undefined>;
+  updatePostStatus(id: string, status: string, userId?: string): Promise<Post | undefined>;
   reorderPosts(updates: { id: string; order: number }[]): Promise<void>;
   deletePost(id: string): Promise<boolean>;
 
-  // Tagged Photos operations
-  getAllTaggedPhotos(): Promise<TaggedPhoto[]>;
+  // Tagged Photos operations - userId scoped
+  getAllTaggedPhotos(userId?: string): Promise<TaggedPhoto[]>;
   getTaggedPhoto(id: string): Promise<TaggedPhoto | undefined>;
   createTaggedPhoto(photo: InsertTaggedPhoto): Promise<TaggedPhoto>;
   updateTaggedPhoto(id: string, data: Partial<InsertTaggedPhoto>): Promise<TaggedPhoto | undefined>;
@@ -47,7 +47,10 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getAllPosts(): Promise<Post[]> {
+  async getAllPosts(userId?: string): Promise<Post[]> {
+    if (userId) {
+      return db.select().from(posts).where(eq(posts.userId, userId)).orderBy(asc(posts.order));
+    }
     return db.select().from(posts).orderBy(asc(posts.order));
   }
 
@@ -66,24 +69,24 @@ export class DatabaseStorage implements IStorage {
     return post || undefined;
   }
 
-  async updatePostStatus(id: string, status: string): Promise<Post | undefined> {
+  async updatePostStatus(id: string, status: string, userId?: string): Promise<Post | undefined> {
     // When approving a post, set its order to be at the bottom of approved posts
     if (status === "approved") {
       const [result] = await db
         .select({ maxOrder: max(posts.order) })
         .from(posts)
-        .where(eq(posts.status, "approved"));
+        .where(userId ? and(eq(posts.status, "approved"), eq(posts.userId, userId)) : eq(posts.status, "approved"));
       
       const newOrder = (result?.maxOrder ?? 0) + 1;
       const [post] = await db
         .update(posts)
         .set({ status, order: newOrder })
-        .where(eq(posts.id, id))
+        .where(userId ? and(eq(posts.id, id), eq(posts.userId, userId)) : eq(posts.id, id))
         .returning();
       return post || undefined;
     }
     
-    const [post] = await db.update(posts).set({ status }).where(eq(posts.id, id)).returning();
+    const [post] = await db.update(posts).set({ status }).where(userId ? and(eq(posts.id, id), eq(posts.userId, userId)) : eq(posts.id, id)).returning();
     return post || undefined;
   }
 
@@ -99,7 +102,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Tagged Photos operations
-  async getAllTaggedPhotos(): Promise<TaggedPhoto[]> {
+  async getAllTaggedPhotos(userId?: string): Promise<TaggedPhoto[]> {
+    if (userId) {
+      return db.select().from(taggedPhotos).where(eq(taggedPhotos.userId, userId));
+    }
     return db.select().from(taggedPhotos);
   }
 

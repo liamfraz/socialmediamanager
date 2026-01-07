@@ -84,10 +84,11 @@ export async function registerRoutes(
     }
     res.json({ id: user.id, username: user.username });
   });
-  // Get all posts
-  app.get("/api/posts", async (_req, res) => {
+  // Get all posts (user-scoped)
+  app.get("/api/posts", requireAuth, async (req, res) => {
     try {
-      const posts = await storage.getAllPosts();
+      const userId = req.session.userId!;
+      const posts = await storage.getAllPosts(userId);
       res.json(posts);
     } catch (error) {
       console.error("Error fetching posts:", error);
@@ -120,7 +121,7 @@ export async function registerRoutes(
   }
 
   // Reorder posts - MUST be before /api/posts/:id to avoid matching "reorder" as an id
-  app.put("/api/posts/reorder", async (req, res) => {
+  app.put("/api/posts/reorder", requireAuth, async (req, res) => {
     try {
       const validatedData = reorderSchema.parse(req.body);
       await storage.reorderPosts(validatedData.updates);
@@ -136,11 +137,12 @@ export async function registerRoutes(
     }
   });
 
-  // Get single post
-  app.get("/api/posts/:id", async (req, res) => {
+  // Get single post (user-scoped)
+  app.get("/api/posts/:id", requireAuth, async (req, res) => {
     try {
+      const userId = req.session.userId!;
       const post = await storage.getPost(req.params.id);
-      if (!post) {
+      if (!post || post.userId !== userId) {
         return res.status(404).json({ error: "Post not found" });
       }
       res.json(post);
@@ -150,19 +152,20 @@ export async function registerRoutes(
     }
   });
 
-  // Create post
-  app.post("/api/posts", async (req, res) => {
+  // Create post (user-scoped)
+  app.post("/api/posts", requireAuth, async (req, res) => {
     try {
+      const userId = req.session.userId!;
       const validatedData = insertPostSchema.parse(req.body);
       
       // Calculate order if not provided
       if (validatedData.order === undefined) {
-        const allPosts = await storage.getAllPosts();
+        const allPosts = await storage.getAllPosts(userId);
         const maxOrder = allPosts.length > 0 ? Math.max(...allPosts.map(p => p.order)) : 0;
         validatedData.order = maxOrder + 1;
       }
       
-      const post = await storage.createPost(validatedData as any);
+      const post = await storage.createPost({ ...validatedData, userId } as any);
       res.status(201).json(post);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -173,14 +176,17 @@ export async function registerRoutes(
     }
   });
 
-  // Update post (content, images, scheduledDate)
-  app.put("/api/posts/:id", async (req, res) => {
+  // Update post (content, images, scheduledDate) - user-scoped
+  app.put("/api/posts/:id", requireAuth, async (req, res) => {
     try {
-      const validatedData = updatePostSchema.parse(req.body);
-      const post = await storage.updatePost(req.params.id, validatedData);
-      if (!post) {
+      const userId = req.session.userId!;
+      const existingPost = await storage.getPost(req.params.id);
+      if (!existingPost || existingPost.userId !== userId) {
         return res.status(404).json({ error: "Post not found" });
       }
+      
+      const validatedData = updatePostSchema.parse(req.body);
+      const post = await storage.updatePost(req.params.id, validatedData);
       res.json(post);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -191,12 +197,18 @@ export async function registerRoutes(
     }
   });
 
-  // Update post status (approve/reject)
-  app.patch("/api/posts/:id/status", async (req, res) => {
+  // Update post status (approve/reject) - user-scoped
+  app.patch("/api/posts/:id/status", requireAuth, async (req, res) => {
     try {
+      const userId = req.session.userId!;
+      const existingPost = await storage.getPost(req.params.id);
+      if (!existingPost || existingPost.userId !== userId) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+      
       const { status } = req.body;
       const validatedStatus = postStatusEnum.parse(status);
-      const post = await storage.updatePostStatus(req.params.id, validatedStatus);
+      const post = await storage.updatePostStatus(req.params.id, validatedStatus, userId);
       if (!post) {
         return res.status(404).json({ error: "Post not found" });
       }
@@ -218,9 +230,15 @@ export async function registerRoutes(
     }
   });
 
-  // Delete post
-  app.delete("/api/posts/:id", async (req, res) => {
+  // Delete post - user-scoped
+  app.delete("/api/posts/:id", requireAuth, async (req, res) => {
     try {
+      const userId = req.session.userId!;
+      const existingPost = await storage.getPost(req.params.id);
+      if (!existingPost || existingPost.userId !== userId) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+      
       const deleted = await storage.deletePost(req.params.id);
       if (!deleted) {
         return res.status(404).json({ error: "Post not found" });
@@ -639,10 +657,11 @@ export async function registerRoutes(
     }
   });
 
-  // Tagged Photos routes
-  app.get("/api/tagged-photos", async (_req, res) => {
+  // Tagged Photos routes (user-scoped)
+  app.get("/api/tagged-photos", requireAuth, async (req, res) => {
     try {
-      const photos = await storage.getAllTaggedPhotos();
+      const userId = req.session.userId!;
+      const photos = await storage.getAllTaggedPhotos(userId);
       res.json(photos);
     } catch (error) {
       console.error("Error fetching tagged photos:", error);
@@ -650,10 +669,11 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/tagged-photos/:id", async (req, res) => {
+  app.get("/api/tagged-photos/:id", requireAuth, async (req, res) => {
     try {
+      const userId = req.session.userId!;
       const photo = await storage.getTaggedPhoto(req.params.id);
-      if (!photo) {
+      if (!photo || photo.userId !== userId) {
         return res.status(404).json({ error: "Photo not found" });
       }
       res.json(photo);
@@ -663,10 +683,11 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/tagged-photos", async (req, res) => {
+  app.post("/api/tagged-photos", requireAuth, async (req, res) => {
     try {
+      const userId = req.session.userId!;
       const validatedData = insertTaggedPhotoSchema.parse(req.body);
-      const photo = await storage.createTaggedPhoto(validatedData);
+      const photo = await storage.createTaggedPhoto({ ...validatedData, userId });
       res.status(201).json(photo);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -677,13 +698,16 @@ export async function registerRoutes(
     }
   });
 
-  app.put("/api/tagged-photos/:id", async (req, res) => {
+  app.put("/api/tagged-photos/:id", requireAuth, async (req, res) => {
     try {
-      const validatedData = updateTaggedPhotoSchema.parse(req.body);
-      const photo = await storage.updateTaggedPhoto(req.params.id, validatedData);
-      if (!photo) {
+      const userId = req.session.userId!;
+      const existingPhoto = await storage.getTaggedPhoto(req.params.id);
+      if (!existingPhoto || existingPhoto.userId !== userId) {
         return res.status(404).json({ error: "Photo not found" });
       }
+      
+      const validatedData = updateTaggedPhotoSchema.parse(req.body);
+      const photo = await storage.updateTaggedPhoto(req.params.id, validatedData);
       res.json(photo);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -694,13 +718,14 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/tagged-photos/:id", async (req, res) => {
+  app.delete("/api/tagged-photos/:id", requireAuth, async (req, res) => {
     try {
+      const userId = req.session.userId!;
       const dbId = req.params.id;
       
-      // Fetch the photo first to get the Google Drive ID from the URL
+      // Fetch the photo first to verify ownership and get the Google Drive ID from the URL
       const photo = await storage.getTaggedPhoto(dbId);
-      if (!photo) {
+      if (!photo || photo.userId !== userId) {
         return res.status(404).json({ error: "Photo not found" });
       }
       

@@ -24,6 +24,7 @@ export const postStatusEnum = z.enum(postStatusValues);
 
 export const posts = pgTable("posts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
   content: text("content").notNull(),
   status: text("status").notNull().default("pending"),
   scheduledDate: timestamp("scheduled_date").notNull(),
@@ -70,6 +71,7 @@ export type Post = typeof posts.$inferSelect;
 // Tagged Photos table
 export const taggedPhotos = pgTable("tagged_photos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
   photoId: text("photo_id").notNull(),
   photoUrl: text("photo_url").notNull(),
   description: text("description"),

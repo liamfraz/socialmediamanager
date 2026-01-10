@@ -19,7 +19,7 @@ export interface IStorage {
   // Tagged Photos operations - userId scoped
   getAllTaggedPhotos(userId?: string): Promise<TaggedPhoto[]>;
   getTaggedPhoto(id: string): Promise<TaggedPhoto | undefined>;
-  createTaggedPhoto(photo: InsertTaggedPhoto): Promise<TaggedPhoto>;
+  createTaggedPhoto(photo: InsertTaggedPhoto, userId?: string): Promise<TaggedPhoto>;
   updateTaggedPhoto(id: string, data: Partial<InsertTaggedPhoto>): Promise<TaggedPhoto | undefined>;
   deleteTaggedPhoto(id: string): Promise<boolean>;
 
@@ -114,8 +114,9 @@ export class DatabaseStorage implements IStorage {
     return photo || undefined;
   }
 
-  async createTaggedPhoto(insertPhoto: InsertTaggedPhoto): Promise<TaggedPhoto> {
-    const [photo] = await db.insert(taggedPhotos).values(insertPhoto).returning();
+  async createTaggedPhoto(insertPhoto: InsertTaggedPhoto, userId?: string): Promise<TaggedPhoto> {
+    const photoWithUser = userId ? { ...insertPhoto, userId } : insertPhoto;
+    const [photo] = await db.insert(taggedPhotos).values(photoWithUser).returning();
     return photo;
   }
 

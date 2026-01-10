@@ -610,8 +610,20 @@ export async function registerRoutes(
       }
       
       // Extract fields from n8n format
-      // Expected format: { Image, filename, url, tags, uploadDate }
-      const { filename, url, tags, uploadDate, Image } = data;
+      // Expected format: { Image, filename, url, tags, uploadDate, username }
+      const { filename, url, tags, uploadDate, Image, username } = data;
+      
+      // Look up user by username if provided
+      let userId: string | null = null;
+      if (username) {
+        const user = await storage.getUserByUsername(username);
+        if (user) {
+          userId = user.id;
+          console.log(`Tagged photo will be assigned to user: ${username} (${userId})`);
+        } else {
+          console.log(`Warning: Username '${username}' not found, photo will not be assigned to any user`);
+        }
+      }
       
       if (!url) {
         return res.status(400).json({ error: "URL is required" });
@@ -651,13 +663,13 @@ export async function registerRoutes(
       // Generate a unique photoId from filename or timestamp
       const photoId = filename || `photo-${Date.now()}`;
       
-      // Create the tagged photo
+      // Create the tagged photo with userId if available
       const photo = await storage.createTaggedPhoto({
         photoId,
         photoUrl: displayableUrl,
         description: filename || null,
         tags: parsedTags.length > 0 ? parsedTags : null,
-      });
+      }, userId || undefined);
       
       console.log("Tagged photo created via webhook:", photo.id);
       res.status(201).json({ success: true, photoId: photo.id, message: "Tagged photo created successfully" });
@@ -897,7 +909,7 @@ export async function registerRoutes(
           affectedUserIds.add(post.userId);
         }
         // Recalculate dates per-tenant to maintain sequence
-        for (const userId of affectedUserIds) {
+        for (const userId of Array.from(affectedUserIds)) {
           if (userId) {
             await recalculateApprovedPostsDates(userId);
           }

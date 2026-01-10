@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Settings, LogOut, User } from "lucide-react";
 import flowtechLogo from "@assets/Screenshot_2025-11-29_at_1.38.06_pm_1765271076550.png";
+import { useAuth } from "@/lib/auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +36,11 @@ export default function Header() {
   const [prepareDialogOpen, setPrepareDialogOpen] = useState(false);
   const [postCount, setPostCount] = useState("1");
   const [postTopics, setPostTopics] = useState<string[]>([""]);
+  const { user, logout } = useAuth();
+
+  const getInitials = (username: string) => {
+    return username.slice(0, 2).toUpperCase();
+  };
 
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between gap-4 border-b bg-background px-6 py-4">
@@ -54,16 +60,13 @@ export default function Header() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full" data-testid="button-account-menu">
               <Avatar className="h-8 w-8" data-testid="avatar-user">
-                <AvatarFallback className="text-xs">JD</AvatarFallback>
+                <AvatarFallback className="text-xs">{user ? getInitials(user.username) : "?"}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">John Doe</p>
-                <p className="text-xs text-muted-foreground">john.doe@example.com</p>
-              </div>
+              <p className="text-sm font-medium">{user?.username || "Unknown"}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setLocation("/account")} data-testid="menu-item-account">
@@ -75,7 +78,7 @@ export default function Header() {
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive" data-testid="menu-item-logout">
+            <DropdownMenuItem className="text-destructive" onClick={logout} data-testid="menu-item-logout">
               <LogOut className="mr-2 h-4 w-4" />
               Log out
             </DropdownMenuItem>

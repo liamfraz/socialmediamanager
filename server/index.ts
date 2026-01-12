@@ -7,6 +7,11 @@ import { createServer } from "http";
 const app = express();
 const httpServer = createServer(app);
 
+// Health check endpoint - registered before any middleware
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;

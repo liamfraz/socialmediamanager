@@ -10,7 +10,14 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // Skip static file serving for API routes so they reach the API handlers
+  const staticMiddleware = express.static(distPath);
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    return staticMiddleware(req, res, next);
+  });
 
   // fall through to index.html if the file doesn't exist (but not for /api routes)
   app.use("*", (req, res, next) => {

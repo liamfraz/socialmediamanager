@@ -22,6 +22,11 @@ export const postStatusValues = ["pending", "approved", "rejected", "draft", "po
 export type PostStatus = typeof postStatusValues[number];
 export const postStatusEnum = z.enum(postStatusValues);
 
+// Post layout enum values (how photos are displayed)
+export const postLayoutValues = ["single", "duo", "quadrant"] as const;
+export type PostLayout = typeof postLayoutValues[number];
+export const postLayoutEnum = z.enum(postLayoutValues);
+
 export const posts = pgTable("posts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id),
@@ -31,6 +36,7 @@ export const posts = pgTable("posts", {
   images: text("images").array(),
   collaborators: text("collaborators").array(),
   order: integer("order").notNull(),
+  layout: text("layout").notNull().default("single"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
@@ -46,6 +52,7 @@ export const insertPostSchema = createInsertSchema(posts).omit({
   status: postStatusEnum,
   scheduledDate: dateTransform,
   order: z.number().int().optional(),
+  layout: postLayoutEnum.optional(),
 });
 
 export const updatePostSchema = createInsertSchema(posts).omit({
@@ -53,6 +60,7 @@ export const updatePostSchema = createInsertSchema(posts).omit({
 }).extend({
   status: postStatusEnum.optional(),
   scheduledDate: dateTransform.optional(),
+  layout: postLayoutEnum.optional(),
 }).partial();
 
 // Schema for reorder endpoint validation

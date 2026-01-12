@@ -6,7 +6,7 @@ import PostDetailCard from "@/components/PostDetailCard";
 import ActionPanel from "@/components/ActionPanel";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import { useToast } from "@/hooks/use-toast";
-import type { Post } from "@shared/schema";
+import type { Post, PostLayout } from "@shared/schema";
 import type { PostStatus } from "@/components/StatusBadge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -23,6 +23,7 @@ export default function PostDetail() {
   const [editedContent, setEditedContent] = useState<string | null>(null);
   const [editedImages, setEditedImages] = useState<string[] | null>(null);
   const [editedCollaborators, setEditedCollaborators] = useState<string[] | null>(null);
+  const [editedLayout, setEditedLayout] = useState<PostLayout | null>(null);
 
   const { data: posts = [] } = useQuery<Post[]>({
     queryKey: ["/api/posts"],
@@ -53,7 +54,7 @@ export default function PostDetail() {
   });
 
   const updatePostMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { content?: string; images?: string[]; collaborators?: string[] } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { content?: string; images?: string[]; collaborators?: string[]; layout?: PostLayout } }) => {
       return apiRequest("PUT", `/api/posts/${id}`, data);
     },
     onSuccess: () => {
@@ -106,11 +107,12 @@ export default function PostDetail() {
   }
 
   const handleApprove = async () => {
-    if (editedContent !== null || editedImages !== null || editedCollaborators !== null) {
-      const data: { content?: string; images?: string[]; collaborators?: string[] } = {};
+    if (editedContent !== null || editedImages !== null || editedCollaborators !== null || editedLayout !== null) {
+      const data: { content?: string; images?: string[]; collaborators?: string[]; layout?: PostLayout } = {};
       if (editedContent !== null) data.content = editedContent;
       if (editedImages !== null) data.images = editedImages;
       if (editedCollaborators !== null) data.collaborators = editedCollaborators;
+      if (editedLayout !== null) data.layout = editedLayout;
       await updatePostMutation.mutateAsync({ id: post.id, data });
     }
 
@@ -137,11 +139,12 @@ export default function PostDetail() {
   };
 
   const handleSendToReview = async () => {
-    if (editedContent !== null || editedImages !== null || editedCollaborators !== null) {
-      const data: { content?: string; images?: string[]; collaborators?: string[] } = {};
+    if (editedContent !== null || editedImages !== null || editedCollaborators !== null || editedLayout !== null) {
+      const data: { content?: string; images?: string[]; collaborators?: string[]; layout?: PostLayout } = {};
       if (editedContent !== null) data.content = editedContent;
       if (editedImages !== null) data.images = editedImages;
       if (editedCollaborators !== null) data.collaborators = editedCollaborators;
+      if (editedLayout !== null) data.layout = editedLayout;
       await updatePostMutation.mutateAsync({ id: post.id, data });
     }
 
@@ -202,9 +205,11 @@ export default function PostDetail() {
             rowIndex={rowIndex}
             images={editedImages ?? post.images ?? undefined}
             collaborators={editedCollaborators ?? post.collaborators ?? undefined}
+            layout={(editedLayout ?? (post as any).layout ?? "single") as PostLayout}
             onContentChange={setEditedContent}
             onImagesChange={setEditedImages}
             onCollaboratorsChange={setEditedCollaborators}
+            onLayoutChange={setEditedLayout}
           />
         </div>
       </main>

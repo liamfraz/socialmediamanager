@@ -29,7 +29,15 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Calendar, Clock, Plus, X, Search, Check, Users } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar, Clock, Plus, X, Search, Check, Users, LayoutGrid, Columns2, Square } from "lucide-react";
+import type { PostLayout } from "@shared/schema";
 import { SiInstagram } from "react-icons/si";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
 import ImageCarousel from "./ImageCarousel";
@@ -124,9 +132,11 @@ interface PostDetailCardProps {
   rowIndex?: number;
   images?: string[];
   collaborators?: string[];
+  layout?: PostLayout;
   onContentChange?: (content: string) => void;
   onImagesChange?: (images: string[]) => void;
   onCollaboratorsChange?: (collaborators: string[]) => void;
+  onLayoutChange?: (layout: PostLayout) => void;
 }
 
 const INSTAGRAM_LIMIT = 2200;
@@ -145,13 +155,16 @@ export default function PostDetailCard({
   rowIndex = 0,
   images = [],
   collaborators = [],
+  layout = "single",
   onContentChange,
   onImagesChange,
   onCollaboratorsChange,
+  onLayoutChange,
 }: PostDetailCardProps) {
   const [editedContent, setEditedContent] = useState(content);
   const [currentImages, setCurrentImages] = useState<string[]>(images);
   const [currentCollaborators, setCurrentCollaborators] = useState<string[]>(collaborators);
+  const [currentLayout, setCurrentLayout] = useState<PostLayout>(layout);
   const [collaboratorInput, setCollaboratorInput] = useState("");
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -190,6 +203,11 @@ export default function PostDetailCard({
   const handleContentChange = (value: string) => {
     setEditedContent(value);
     onContentChange?.(value);
+  };
+
+  const handleLayoutChange = (value: PostLayout) => {
+    setCurrentLayout(value);
+    onLayoutChange?.(value);
   };
 
   const handleAddPhoto = () => {
@@ -327,6 +345,35 @@ export default function PostDetailCard({
               </SortableContext>
             </DndContext>
           )}
+
+          <div className="flex items-center gap-3 pt-2">
+            <span className="text-sm text-muted-foreground">Photo Layout:</span>
+            <Select value={currentLayout} onValueChange={(v) => handleLayoutChange(v as PostLayout)}>
+              <SelectTrigger className="w-40" data-testid="select-layout">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="single" data-testid="layout-single">
+                  <div className="flex items-center gap-2">
+                    <Square className="h-4 w-4" />
+                    <span>Single</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="duo" data-testid="layout-duo">
+                  <div className="flex items-center gap-2">
+                    <Columns2 className="h-4 w-4" />
+                    <span>Duo (2 photos)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="quadrant" data-testid="layout-quadrant">
+                  <div className="flex items-center gap-2">
+                    <LayoutGrid className="h-4 w-4" />
+                    <span>Quadrant (4 photos)</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="space-y-2">

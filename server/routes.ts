@@ -84,11 +84,10 @@ export async function registerRoutes(
     }
     res.json({ id: user.id, username: user.username });
   });
-  // Get all posts (user-scoped)
-  app.get("/api/posts", requireAuth, async (req, res) => {
+  // Get all posts (single-user mode)
+  app.get("/api/posts", async (req, res) => {
     try {
-      const userId = req.session.userId!;
-      const posts = await storage.getAllPosts(userId);
+      const posts = await storage.getAllPosts();
       res.json(posts);
     } catch (error) {
       console.error("Error fetching posts:", error);
@@ -121,22 +120,11 @@ export async function registerRoutes(
   }
 
   // Reorder posts - MUST be before /api/posts/:id to avoid matching "reorder" as an id
-  app.put("/api/posts/reorder", requireAuth, async (req, res) => {
+  app.put("/api/posts/reorder", async (req, res) => {
     try {
-      const userId = req.session.userId!;
       const validatedData = reorderSchema.parse(req.body);
-      
-      // Validate that all post IDs belong to the current user
-      const userPosts = await storage.getAllPosts(userId);
-      const userPostIds = new Set(userPosts.map(p => p.id));
-      const invalidIds = validatedData.updates.filter(u => !userPostIds.has(u.id));
-      if (invalidIds.length > 0) {
-        return res.status(403).json({ error: "Cannot reorder posts you don't own" });
-      }
-      
       await storage.reorderPosts(validatedData.updates);
-      // Recalculate dates after reordering (user-scoped)
-      await recalculateApprovedPostsDates(userId);
+      await recalculateApprovedPostsDates();
       res.json({ success: true });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -147,12 +135,11 @@ export async function registerRoutes(
     }
   });
 
-  // Get single post (user-scoped)
-  app.get("/api/posts/:id", requireAuth, async (req, res) => {
+  // Get single post (single-user mode)
+  app.get("/api/posts/:id", async (req, res) => {
     try {
-      const userId = req.session.userId!;
       const post = await storage.getPost(req.params.id);
-      if (!post || post.userId !== userId) {
+      if (!post) {
         return res.status(404).json({ error: "Post not found" });
       }
       res.json(post);
@@ -162,20 +149,19 @@ export async function registerRoutes(
     }
   });
 
-  // Create post (user-scoped)
-  app.post("/api/posts", requireAuth, async (req, res) => {
+  // Create post (single-user mode)
+  app.post("/api/posts", async (req, res) => {
     try {
-      const userId = req.session.userId!;
       const validatedData = insertPostSchema.parse(req.body);
       
       // Calculate order if not provided
       if (validatedData.order === undefined) {
-        const allPosts = await storage.getAllPosts(userId);
+        const allPosts = await storage.getAllPosts();
         const maxOrder = allPosts.length > 0 ? Math.max(...allPosts.map(p => p.order)) : 0;
         validatedData.order = maxOrder + 1;
       }
       
-      const post = await storage.createPost({ ...validatedData, userId } as any);
+      const post = await storage.createPost(validatedData as any);
       res.status(201).json(post);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -186,12 +172,11 @@ export async function registerRoutes(
     }
   });
 
-  // Update post (content, images, scheduledDate) - user-scoped
-  app.put("/api/posts/:id", requireAuth, async (req, res) => {
+  // Update post (content, images, scheduledDate) - single-user mode
+  app.put("/api/posts/:id", async (req, res) => {
     try {
-      const userId = req.session.userId!;
       const existingPost = await storage.getPost(req.params.id);
-      if (!existingPost || existingPost.userId !== userId) {
+      if (!existingPost) {
         return res.status(404).json({ error: "Post not found" });
       }
       
@@ -207,25 +192,24 @@ export async function registerRoutes(
     }
   });
 
-  // Update post status (approve/reject) - user-scoped
-  app.patch("/api/posts/:id/status", requireAuth, async (req, res) => {
+  // Update post status (approve/reject) - single-user mode
+  app.patch("/api/posts/:id/status", async (req, res) => {
     try {
-      const userId = req.session.userId!;
       const existingPost = await storage.getPost(req.params.id);
-      if (!existingPost || existingPost.userId !== userId) {
+      if (!existingPost) {
         return res.status(404).json({ error: "Post not found" });
       }
       
       const { status } = req.body;
       const validatedStatus = postStatusEnum.parse(status);
-      const post = await storage.updatePostStatus(req.params.id, validatedStatus, userId);
+      const post = await storage.updatePostStatus(req.params.id, validatedStatus);
       if (!post) {
         return res.status(404).json({ error: "Post not found" });
       }
       
-      // Recalculate all approved posts dates after status change (user-scoped)
+      // Recalculate all approved posts dates after status change
       if (validatedStatus === "approved" || validatedStatus === "rejected" || validatedStatus === "pending") {
-        await recalculateApprovedPostsDates(userId);
+        await recalculateApprovedPostsDates();
       }
       
       // Fetch updated post with new scheduled date
@@ -240,12 +224,11 @@ export async function registerRoutes(
     }
   });
 
-  // Delete post - user-scoped
-  app.delete("/api/posts/:id", requireAuth, async (req, res) => {
+  // Delete post - single-user mode
+  app.delete("/api/posts/:id", async (req, res) => {
     try {
-      const userId = req.session.userId!;
       const existingPost = await storage.getPost(req.params.id);
-      if (!existingPost || existingPost.userId !== userId) {
+      if (!existingPost) {
         return res.status(404).json({ error: "Post not found" });
       }
       
@@ -865,11 +848,10 @@ export async function registerRoutes(
     }
   });
 
-  // Recalculate dates endpoint (for initial setup) - user-scoped
-  app.post("/api/posts/recalculate-dates", requireAuth, async (req, res) => {
+  // Recalculate dates endpoint (for initial setup) - single-user mode
+  app.post("/api/posts/recalculate-dates", async (req, res) => {
     try {
-      const userId = req.session.userId!;
-      await recalculateApprovedPostsDates(userId);
+      await recalculateApprovedPostsDates();
       res.json({ success: true, message: "Dates recalculated" });
     } catch (error) {
       console.error("Error recalculating dates:", error);
@@ -877,12 +859,11 @@ export async function registerRoutes(
     }
   });
 
-  // Manual post endpoint - sends a post to webhook immediately (user-scoped)
-  app.post("/api/posts/:id/post-now", requireAuth, async (req, res) => {
+  // Manual post endpoint - sends a post to webhook immediately (single-user mode)
+  app.post("/api/posts/:id/post-now", async (req, res) => {
     try {
-      const userId = req.session.userId!;
       const post = await storage.getPost(req.params.id);
-      if (!post || post.userId !== userId) {
+      if (!post) {
         return res.status(404).json({ error: "Post not found" });
       }
 
@@ -929,9 +910,9 @@ export async function registerRoutes(
 
         if (verified) {
           // Move post to "posted" status only after n8n confirms
-          await storage.updatePostStatus(post.id, "posted", userId);
-          // Recalculate remaining approved posts dates (user-scoped)
-          await recalculateApprovedPostsDates(userId);
+          await storage.updatePostStatus(post.id, "posted");
+          // Recalculate remaining approved posts dates
+          await recalculateApprovedPostsDates();
           console.log(`Manual post ${post.id} verified by n8n and moved to 'posted' status`);
           res.json({ success: true, message: responseMessage || "Post sent and confirmed" });
         } else {

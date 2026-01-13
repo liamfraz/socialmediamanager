@@ -57,6 +57,17 @@ export default function TaggedPhotos() {
     refetchInterval: 5000,
   });
 
+  // Debug query to see all photos
+  const { data: debugData } = useQuery<{ totalPhotos: number; loggedInUserId: string; photos: any[] }>({
+    queryKey: ["/api/tagged-photos/debug-all"],
+    refetchInterval: 10000,
+  });
+  
+  // Log debug data to console
+  if (debugData) {
+    console.log("DEBUG - All photos in DB:", debugData);
+  }
+
   // Filter photos based on search term (case-insensitive tag matching)
   const filteredPhotos = useMemo(() => {
     if (!searchTerm.trim()) return photos;
@@ -322,6 +333,21 @@ export default function TaggedPhotos() {
             </Button>
           </div>
         </div>
+
+        {/* Debug Info Banner - temporarily showing database state */}
+        {debugData && (
+          <div className="mb-4 rounded-lg border border-blue-500/50 bg-blue-50 dark:bg-blue-950/30 p-3 text-sm">
+            <p className="font-medium text-blue-800 dark:text-blue-200">
+              Debug Info: {debugData.totalPhotos} total photos in production database | Your User ID: {debugData.loggedInUserId || "not logged in"}
+            </p>
+            {debugData.photos && debugData.photos.length > 0 && (
+              <p className="mt-1 text-blue-700 dark:text-blue-300">
+                Photo user IDs: {debugData.photos.slice(0, 5).map(p => p.userId || "null").join(", ")}
+                {debugData.photos.length > 5 && `... and ${debugData.photos.length - 5} more`}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Unassigned Photos Banner */}
         {unassignedPhotos.length > 0 && (

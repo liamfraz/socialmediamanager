@@ -679,6 +679,21 @@ export async function registerRoutes(
     }
   });
 
+  // Debug endpoint: direct database count (no ORM)
+  app.get("/api/debug/tagged-photos-count", requireAuth, async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { sql } = await import("drizzle-orm");
+      const result = await db.execute(sql`SELECT COUNT(*) as count FROM tagged_photos`);
+      const count = Number(result.rows?.[0]?.count || result[0]?.count || 0);
+      console.log(`Debug count endpoint: ${count} photos in database`);
+      res.json({ count });
+    } catch (error) {
+      console.error("Debug count error:", error);
+      res.status(500).json({ error: "Failed to get count", details: String(error) });
+    }
+  });
+
   // Tagged Photos routes (shared library - single user mode)
   app.get("/api/tagged-photos", requireAuth, async (req, res) => {
     try {

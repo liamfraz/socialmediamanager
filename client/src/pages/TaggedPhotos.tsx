@@ -46,10 +46,24 @@ export default function TaggedPhotos() {
     tags: "",
   });
 
-  const { data: photos = [], isLoading } = useQuery<TaggedPhoto[]>({
+  const { data: photos = [], isLoading, error, isError } = useQuery<TaggedPhoto[]>({
     queryKey: ["/api/tagged-photos"],
     refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
+
+  // Debug: fetch direct DB count
+  const { data: debugCount } = useQuery<{ count: number }>({
+    queryKey: ["/api/debug/tagged-photos-count"],
+    refetchInterval: 10000,
+  });
+
+  // Log any errors
+  if (isError) {
+    console.error("Error fetching photos:", error);
+  }
+  if (debugCount) {
+    console.log("DB Count:", debugCount.count, "| API returned:", photos.length);
+  }
 
 
   // Filter photos based on search term (case-insensitive tag matching)
@@ -305,8 +319,39 @@ export default function TaggedPhotos() {
           </div>
         </div>
 
+        {/* Debug: Show DB count vs API count */}
+        {debugCount && (
+          <div className="mb-4 rounded-lg border border-blue-500/50 bg-blue-50 dark:bg-blue-950/30 p-3 text-sm">
+            <p className="font-medium text-blue-800 dark:text-blue-200">
+              Debug: DB Count = {debugCount.count} | API returned = {photos.length}
+              {debugCount.count > 0 && photos.length === 0 && (
+                <span className="ml-2 text-red-600 dark:text-red-400 font-bold">
+                  MISMATCH: Database has photos but API returns empty!
+                </span>
+              )}
+            </p>
+          </div>
+        )}
+
+        {/* Error display */}
+        {isError && (
+          <div className="mb-4 rounded-lg border border-red-500/50 bg-red-50 dark:bg-red-950/30 p-3 text-sm">
+            <p className="font-medium text-red-800 dark:text-red-200">
+              Error loading photos: {error instanceof Error ? error.message : String(error)}
+            </p>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="text-center text-muted-foreground py-12">Loading photos...</div>
+        ) : isError ? (
+          <div className="text-center py-12">
+            <ImageIcon className="mx-auto h-12 w-12 text-red-500/50" />
+            <h3 className="mt-4 text-lg font-medium text-red-600">Failed to load photos</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {error instanceof Error ? error.message : "Unknown error occurred"}
+            </p>
+          </div>
         ) : photos.length === 0 ? (
           <div className="text-center py-12">
             <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground/50" />

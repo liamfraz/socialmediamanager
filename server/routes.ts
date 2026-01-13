@@ -691,6 +691,35 @@ export async function registerRoutes(
     }
   });
 
+  // Get unassigned tagged photos (photos with no userId)
+  app.get("/api/tagged-photos/unassigned", requireAuth, async (req, res) => {
+    try {
+      const photos = await storage.getUnassignedTaggedPhotos();
+      res.json(photos);
+    } catch (error) {
+      console.error("Error fetching unassigned photos:", error);
+      res.status(500).json({ error: "Failed to fetch unassigned photos" });
+    }
+  });
+
+  // Claim unassigned photos for the current user
+  app.post("/api/tagged-photos/claim", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId!;
+      const { photoIds } = req.body;
+      
+      if (!Array.isArray(photoIds) || photoIds.length === 0) {
+        return res.status(400).json({ error: "photoIds array is required" });
+      }
+      
+      const claimedCount = await storage.claimTaggedPhotos(photoIds, userId);
+      res.json({ success: true, claimedCount, message: `${claimedCount} photos claimed successfully` });
+    } catch (error) {
+      console.error("Error claiming photos:", error);
+      res.status(500).json({ error: "Failed to claim photos" });
+    }
+  });
+
   app.get("/api/tagged-photos/:id", requireAuth, async (req, res) => {
     try {
       const userId = req.session.userId!;

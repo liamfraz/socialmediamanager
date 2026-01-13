@@ -18,10 +18,12 @@ export interface IStorage {
 
   // Tagged Photos operations - userId scoped
   getAllTaggedPhotos(userId?: string): Promise<TaggedPhoto[]>;
+  getUnassignedTaggedPhotos(): Promise<TaggedPhoto[]>;
   getTaggedPhoto(id: string): Promise<TaggedPhoto | undefined>;
   createTaggedPhoto(photo: InsertTaggedPhoto, userId?: string): Promise<TaggedPhoto>;
   updateTaggedPhoto(id: string, data: Partial<InsertTaggedPhoto>): Promise<TaggedPhoto | undefined>;
   deleteTaggedPhoto(id: string): Promise<boolean>;
+  claimTaggedPhotos(photoIds: string[], userId: string): Promise<number>;
 
   // Posting Settings operations
   getPostingSettings(): Promise<PostingSettings>;
@@ -128,6 +130,21 @@ export class DatabaseStorage implements IStorage {
   async deleteTaggedPhoto(id: string): Promise<boolean> {
     const result = await db.delete(taggedPhotos).where(eq(taggedPhotos.id, id)).returning();
     return result.length > 0;
+  }
+
+  async getUnassignedTaggedPhotos(): Promise<TaggedPhoto[]> {
+    const { isNull } = await import("drizzle-orm");
+    return db.select().from(taggedPhotos).where(isNull(taggedPhotos.userId));
+  }
+
+  async claimTaggedPhotos(photoIds: string[], userId: string): Promise<number> {
+    const { isNull, inArray } = await import("drizzle-orm");
+    const result = await db
+      .update(taggedPhotos)
+      .set({ userId })
+      .where(and(inArray(taggedPhotos.id, photoIds), isNull(taggedPhotos.userId)))
+      .returning();
+    return result.length;
   }
 
   // Posting Settings operations

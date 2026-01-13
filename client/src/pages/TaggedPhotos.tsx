@@ -51,18 +51,9 @@ export default function TaggedPhotos() {
     refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
-  // Debug: fetch direct DB count
-  const { data: debugCount } = useQuery<{ count: number }>({
-    queryKey: ["/api/debug/tagged-photos-count"],
-    refetchInterval: 10000,
-  });
-
   // Log any errors
   if (isError) {
     console.error("Error fetching photos:", error);
-  }
-  if (debugCount) {
-    console.log("DB Count:", debugCount.count, "| API returned:", photos.length);
   }
 
 
@@ -318,20 +309,6 @@ export default function TaggedPhotos() {
             </Button>
           </div>
         </div>
-
-        {/* Debug: Show DB count vs API count */}
-        {debugCount && (
-          <div className="mb-4 rounded-lg border border-blue-500/50 bg-blue-50 dark:bg-blue-950/30 p-3 text-sm">
-            <p className="font-medium text-blue-800 dark:text-blue-200">
-              Debug: DB Count = {debugCount.count} | API returned = {photos.length}
-              {debugCount.count > 0 && photos.length === 0 && (
-                <span className="ml-2 text-red-600 dark:text-red-400 font-bold">
-                  MISMATCH: Database has photos but API returns empty!
-                </span>
-              )}
-            </p>
-          </div>
-        )}
 
         {/* Error display */}
         {isError && (

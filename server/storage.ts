@@ -16,8 +16,8 @@ export interface IStorage {
   reorderPosts(updates: { id: string; order: number }[]): Promise<void>;
   deletePost(id: string): Promise<boolean>;
 
-  // Tagged Photos operations - userId scoped
-  getAllTaggedPhotos(userId?: string): Promise<TaggedPhoto[]>;
+  // Tagged Photos operations - shared library (single user mode)
+  getAllTaggedPhotos(): Promise<TaggedPhoto[]>;
   getUnassignedTaggedPhotos(): Promise<TaggedPhoto[]>;
   getTaggedPhoto(id: string): Promise<TaggedPhoto | undefined>;
   createTaggedPhoto(photo: InsertTaggedPhoto, userId?: string): Promise<TaggedPhoto>;
@@ -103,11 +103,9 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  // Tagged Photos operations
-  async getAllTaggedPhotos(userId?: string): Promise<TaggedPhoto[]> {
-    if (userId) {
-      return db.select().from(taggedPhotos).where(eq(taggedPhotos.userId, userId));
-    }
+  // Tagged Photos operations - shared library (single user mode)
+  async getAllTaggedPhotos(): Promise<TaggedPhoto[]> {
+    // Single user mode: return ALL photos
     return db.select().from(taggedPhotos);
   }
 

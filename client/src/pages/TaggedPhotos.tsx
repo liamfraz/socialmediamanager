@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit, UserPlus } from "lucide-react";
+import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -51,22 +51,6 @@ export default function TaggedPhotos() {
     refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
-  // Fetch unassigned photos (photos sent via webhook but not linked to a user)
-  const { data: unassignedPhotos = [] } = useQuery<TaggedPhoto[]>({
-    queryKey: ["/api/tagged-photos/unassigned"],
-    refetchInterval: 5000,
-  });
-
-  // Debug query to see all photos
-  const { data: debugData } = useQuery<{ totalPhotos: number; loggedInUserId: string; photos: any[] }>({
-    queryKey: ["/api/tagged-photos/debug-all"],
-    refetchInterval: 10000,
-  });
-  
-  // Log debug data to console
-  if (debugData) {
-    console.log("DEBUG - All photos in DB:", debugData);
-  }
 
   // Filter photos based on search term (case-insensitive tag matching)
   const filteredPhotos = useMemo(() => {
@@ -150,19 +134,6 @@ export default function TaggedPhotos() {
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to create post.", variant: "destructive" });
-    },
-  });
-
-  const claimPhotosMutation = useMutation({
-    mutationFn: (photoIds: string[]) =>
-      apiRequest("POST", "/api/tagged-photos/claim", { photoIds }),
-    onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos/unassigned"] });
-      toast({ title: "Photos claimed", description: "The photos have been added to your library." });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to claim photos.", variant: "destructive" });
     },
   });
 
@@ -333,71 +304,6 @@ export default function TaggedPhotos() {
             </Button>
           </div>
         </div>
-
-        {/* Debug Info Banner - temporarily showing database state */}
-        {debugData && (
-          <div className="mb-4 rounded-lg border border-blue-500/50 bg-blue-50 dark:bg-blue-950/30 p-3 text-sm">
-            <p className="font-medium text-blue-800 dark:text-blue-200">
-              Debug Info: {debugData.totalPhotos} total photos in production database | Your User ID: {debugData.loggedInUserId || "not logged in"}
-            </p>
-            {debugData.photos && debugData.photos.length > 0 && (
-              <p className="mt-1 text-blue-700 dark:text-blue-300">
-                Photo user IDs: {debugData.photos.slice(0, 5).map(p => p.userId || "null").join(", ")}
-                {debugData.photos.length > 5 && `... and ${debugData.photos.length - 5} more`}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Unassigned Photos Banner */}
-        {unassignedPhotos.length > 0 && (
-          <div className="mb-6 rounded-lg border border-amber-500/50 bg-amber-50 dark:bg-amber-950/30 p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
-                  <UserPlus className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-amber-800 dark:text-amber-200">
-                    {unassignedPhotos.length} unclaimed photo{unassignedPhotos.length !== 1 ? "s" : ""} available
-                  </h3>
-                  <p className="text-sm text-amber-700/80 dark:text-amber-300/80">
-                    Photos sent from n8n that aren't linked to your account yet
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={() => claimPhotosMutation.mutate(unassignedPhotos.map((p) => p.id))}
-                disabled={claimPhotosMutation.isPending}
-                data-testid="button-claim-all-photos"
-              >
-                <UserPlus className="mr-2 h-4 w-4" />
-                {claimPhotosMutation.isPending ? "Claiming..." : "Claim All Photos"}
-              </Button>
-            </div>
-            
-            {/* Preview of unassigned photos */}
-            <div className="mt-4 flex flex-wrap gap-2">
-              {unassignedPhotos.slice(0, 8).map((photo) => (
-                <img
-                  key={photo.id}
-                  src={getDirectImageUrl(photo.photoUrl)}
-                  alt={photo.description || "Photo"}
-                  className="h-12 w-12 rounded-md object-cover bg-muted"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src =
-                      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'%3E%3C/circle%3E%3Cpolyline points='21 15 16 10 5 21'%3E%3C/polyline%3E%3C/svg%3E";
-                  }}
-                />
-              ))}
-              {unassignedPhotos.length > 8 && (
-                <div className="flex h-12 w-12 items-center justify-center rounded-md bg-muted text-sm text-muted-foreground">
-                  +{unassignedPhotos.length - 8}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {isLoading ? (
           <div className="text-center text-muted-foreground py-12">Loading photos...</div>

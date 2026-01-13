@@ -679,11 +679,11 @@ export async function registerRoutes(
     }
   });
 
-  // Tagged Photos routes (user-scoped)
+  // Tagged Photos routes (shared library - single user mode)
   app.get("/api/tagged-photos", requireAuth, async (req, res) => {
     try {
-      const userId = req.session.userId!;
-      const photos = await storage.getAllTaggedPhotos(userId);
+      // Single user mode: return ALL photos regardless of userId
+      const photos = await storage.getAllTaggedPhotos();
       res.json(photos);
     } catch (error) {
       console.error("Error fetching tagged photos:", error);

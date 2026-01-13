@@ -8,8 +8,6 @@ import { hashPassword, verifyPassword, requireAuth, getCurrentUser } from "./aut
 // Webhook URL from environment
 const POSTING_WEBHOOK_URL = process.env.N8N_POSTING_WEBHOOK_URL || "";
 
-// Track scheduler interval
-let schedulerInterval: NodeJS.Timeout | null = null;
 
 export async function registerRoutes(
   httpServer: Server,
@@ -929,109 +927,7 @@ export async function registerRoutes(
     }
   });
 
-  // Function to process due posts
-  async function processDuePosts() {
-    try {
-      const settings = await storage.getPostingSettings();
-      
-      // Check if posting is paused
-      if (settings.isPaused === "true") {
-        // Move all due posts to next day at 5pm Melbourne (6am UTC)
-        const duePosts = await storage.getDuePosts();
-        const affectedUserIds = new Set<string | null>();
-        for (const post of duePosts) {
-          const nextDay = new Date();
-          nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-          nextDay.setUTCHours(6, 0, 0, 0); // 5pm Melbourne = 6am UTC
-          await storage.updatePost(post.id, { scheduledDate: nextDay });
-          affectedUserIds.add(post.userId);
-        }
-        // Recalculate dates per-tenant to maintain sequence
-        for (const userId of Array.from(affectedUserIds)) {
-          if (userId) {
-            await recalculateApprovedPostsDates(userId);
-          }
-        }
-        console.log(`Posting paused. Moved ${duePosts.length} posts to next day.`);
-        return;
-      }
-
-      // Get due posts
-      const duePosts = await storage.getDuePosts();
-      
-      if (duePosts.length === 0) {
-        return;
-      }
-
-      // Process first due post only (one at a time)
-      const post = duePosts[0];
-      
-      if (!POSTING_WEBHOOK_URL) {
-        console.log("No webhook URL configured. Skipping post:", post.id);
-        return;
-      }
-
-      console.log(`Sending post ${post.id} to webhook...`);
-      
-      // Send to n8n webhook
-      const response = await fetch(POSTING_WEBHOOK_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          postId: post.id,
-          caption: post.content,
-          images: post.images || [],
-          collaborators: post.collaborators || [],
-          scheduledDate: post.scheduledDate,
-        }),
-      });
-
-      if (response.ok) {
-        // Wait for verification - REQUIRE explicit confirmation from n8n
-        let verified = false;
-        try {
-          const responseData = await response.json();
-          console.log(`Scheduler webhook response for post ${post.id}:`, JSON.stringify(responseData));
-          // Only accept explicit success confirmation - NOT just 200 OK
-          verified = responseData.success === true || 
-                    responseData.verified === true ||
-                    responseData.status === "success" ||
-                    responseData.status === "posted";
-        } catch {
-          // No JSON response means no explicit confirmation
-          console.log(`No JSON response from webhook for scheduled post ${post.id}. Treating as unconfirmed.`);
-          verified = false;
-        }
-
-        if (verified) {
-          // Move post to "posted" status only after n8n confirms
-          await storage.updatePostStatus(post.id, "posted", post.userId || undefined);
-          // Recalculate remaining approved posts dates for this user
-          await recalculateApprovedPostsDates(post.userId || undefined);
-          console.log(`Post ${post.id} confirmed by n8n and moved to 'posted' status`);
-        } else {
-          console.log(`Post ${post.id} sent but not confirmed by n8n. Keeping as approved for retry.`);
-        }
-      } else {
-        console.error(`Failed to send post ${post.id} to webhook:`, response.status);
-      }
-    } catch (error) {
-      console.error("Error processing due posts:", error);
-    }
-  }
-
-  // Start scheduler - check every 30 seconds
-  if (schedulerInterval) {
-    clearInterval(schedulerInterval);
-  }
-  schedulerInterval = setInterval(processDuePosts, 30000);
-  
-  // Also run immediately on startup
-  setTimeout(processDuePosts, 5000);
-  
-  console.log("Post scheduler started - checking every 30 seconds");
+  // Automatic scheduler removed - posts are only sent manually via "Post Now" button
 
   return httpServer;
 }

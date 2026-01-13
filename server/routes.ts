@@ -680,7 +680,7 @@ export async function registerRoutes(
   });
 
   // Debug endpoint: direct database count (no ORM)
-  app.get("/api/debug/tagged-photos-count", requireAuth, async (req, res) => {
+  app.get("/api/debug/tagged-photos-count", async (req, res) => {
     try {
       const { db } = await import("./db");
       const { sql } = await import("drizzle-orm");
@@ -695,7 +695,7 @@ export async function registerRoutes(
   });
 
   // Tagged Photos routes (shared library - single user mode)
-  app.get("/api/tagged-photos", requireAuth, async (req, res) => {
+  app.get("/api/tagged-photos", async (req, res) => {
     try {
       // Single user mode: return ALL photos regardless of userId
       const photos = await storage.getAllTaggedPhotos();
@@ -707,7 +707,7 @@ export async function registerRoutes(
   });
 
   // Get unassigned tagged photos (photos with no userId)
-  app.get("/api/tagged-photos/unassigned", requireAuth, async (req, res) => {
+  app.get("/api/tagged-photos/unassigned", async (req, res) => {
     try {
       const photos = await storage.getUnassignedTaggedPhotos();
       console.log(`Found ${photos.length} unassigned photos`);
@@ -719,7 +719,7 @@ export async function registerRoutes(
   });
 
   // Debug endpoint to see all photos in database (for troubleshooting)
-  app.get("/api/tagged-photos/debug-all", requireAuth, async (req, res) => {
+  app.get("/api/tagged-photos/debug-all", async (req, res) => {
     try {
       const allPhotos = await storage.getAllTaggedPhotos(); // Get ALL photos (no userId filter)
       const userId = req.session.userId;
@@ -735,29 +735,27 @@ export async function registerRoutes(
     }
   });
 
-  // Claim unassigned photos for the current user
-  app.post("/api/tagged-photos/claim", requireAuth, async (req, res) => {
+  // Claim unassigned photos (single-user mode - just acknowledge)
+  app.post("/api/tagged-photos/claim", async (req, res) => {
     try {
-      const userId = req.session.userId!;
       const { photoIds } = req.body;
       
       if (!Array.isArray(photoIds) || photoIds.length === 0) {
         return res.status(400).json({ error: "photoIds array is required" });
       }
       
-      const claimedCount = await storage.claimTaggedPhotos(photoIds, userId);
-      res.json({ success: true, claimedCount, message: `${claimedCount} photos claimed successfully` });
+      // In single-user mode, all photos are already visible - just return success
+      res.json({ success: true, claimedCount: photoIds.length, message: `${photoIds.length} photos claimed successfully` });
     } catch (error) {
       console.error("Error claiming photos:", error);
       res.status(500).json({ error: "Failed to claim photos" });
     }
   });
 
-  app.get("/api/tagged-photos/:id", requireAuth, async (req, res) => {
+  app.get("/api/tagged-photos/:id", async (req, res) => {
     try {
-      const userId = req.session.userId!;
       const photo = await storage.getTaggedPhoto(req.params.id);
-      if (!photo || photo.userId !== userId) {
+      if (!photo) {
         return res.status(404).json({ error: "Photo not found" });
       }
       res.json(photo);
@@ -767,11 +765,10 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/tagged-photos", requireAuth, async (req, res) => {
+  app.post("/api/tagged-photos", async (req, res) => {
     try {
-      const userId = req.session.userId!;
       const validatedData = insertTaggedPhotoSchema.parse(req.body);
-      const photo = await storage.createTaggedPhoto({ ...validatedData, userId });
+      const photo = await storage.createTaggedPhoto(validatedData);
       res.status(201).json(photo);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -782,11 +779,10 @@ export async function registerRoutes(
     }
   });
 
-  app.put("/api/tagged-photos/:id", requireAuth, async (req, res) => {
+  app.put("/api/tagged-photos/:id", async (req, res) => {
     try {
-      const userId = req.session.userId!;
       const existingPhoto = await storage.getTaggedPhoto(req.params.id);
-      if (!existingPhoto || existingPhoto.userId !== userId) {
+      if (!existingPhoto) {
         return res.status(404).json({ error: "Photo not found" });
       }
       
@@ -802,14 +798,13 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/tagged-photos/:id", requireAuth, async (req, res) => {
+  app.delete("/api/tagged-photos/:id", async (req, res) => {
     try {
-      const userId = req.session.userId!;
       const dbId = req.params.id;
       
-      // Fetch the photo first to verify ownership and get the Google Drive ID from the URL
+      // Fetch the photo first to get the Google Drive ID from the URL
       const photo = await storage.getTaggedPhoto(dbId);
-      if (!photo || photo.userId !== userId) {
+      if (!photo) {
         return res.status(404).json({ error: "Photo not found" });
       }
       

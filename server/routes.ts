@@ -695,10 +695,28 @@ export async function registerRoutes(
   app.get("/api/tagged-photos/unassigned", requireAuth, async (req, res) => {
     try {
       const photos = await storage.getUnassignedTaggedPhotos();
+      console.log(`Found ${photos.length} unassigned photos`);
       res.json(photos);
     } catch (error) {
       console.error("Error fetching unassigned photos:", error);
       res.status(500).json({ error: "Failed to fetch unassigned photos" });
+    }
+  });
+
+  // Debug endpoint to see all photos in database (for troubleshooting)
+  app.get("/api/tagged-photos/debug-all", requireAuth, async (req, res) => {
+    try {
+      const allPhotos = await storage.getAllTaggedPhotos(); // Get ALL photos (no userId filter)
+      const userId = req.session.userId;
+      console.log(`Debug: Total photos in DB: ${allPhotos.length}, logged in userId: ${userId}`);
+      res.json({
+        totalPhotos: allPhotos.length,
+        loggedInUserId: userId,
+        photos: allPhotos.map(p => ({ id: p.id, userId: p.userId, photoUrl: p.photoUrl?.substring(0, 50) }))
+      });
+    } catch (error) {
+      console.error("Error in debug endpoint:", error);
+      res.status(500).json({ error: "Debug failed" });
     }
   });
 

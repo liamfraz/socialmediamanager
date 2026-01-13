@@ -115,33 +115,6 @@ export default function Login() {
               {isRegisterMode ? "Create Account" : "Sign In"}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            {isRegisterMode ? (
-              <>
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  className="text-primary underline-offset-4 hover:underline"
-                  onClick={() => setIsRegisterMode(false)}
-                  data-testid="link-signin"
-                >
-                  Sign in
-                </button>
-              </>
-            ) : (
-              <>
-                Don't have an account?{" "}
-                <button
-                  type="button"
-                  className="text-primary underline-offset-4 hover:underline"
-                  onClick={() => setIsRegisterMode(true)}
-                  data-testid="link-register"
-                >
-                  Create one
-                </button>
-              </>
-            )}
-          </div>
         </CardContent>
       </Card>
     </div>

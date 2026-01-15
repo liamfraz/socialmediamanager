@@ -927,7 +927,74 @@ export async function registerRoutes(
     }
   });
 
-  // Automatic scheduler removed - posts are only sent manually via "Post Now" button
+  // Automatic scheduler - checks for due posts and sends them once (no retries)
+  async function processDuePosts() {
+    try {
+      const settings = await storage.getPostingSettings();
+      
+      // Check if posting is paused
+      if (settings.isPaused === "true") {
+        return;
+      }
+
+      // Get due posts (scheduled time has passed)
+      const duePosts = await storage.getDuePosts();
+      
+      if (duePosts.length === 0) {
+        return;
+      }
+
+      // Process each due post once
+      for (const post of duePosts) {
+        if (!POSTING_WEBHOOK_URL) {
+          console.log("No webhook URL configured. Moving post to posted:", post.id);
+          await storage.updatePostStatus(post.id, "posted");
+          continue;
+        }
+
+        console.log(`Sending post ${post.id} to webhook (single attempt)...`);
+        
+        try {
+          // Send to n8n webhook
+          const response = await fetch(POSTING_WEBHOOK_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              postId: post.id,
+              caption: post.content,
+              images: post.images || [],
+              collaborators: post.collaborators || [],
+              scheduledDate: post.scheduledDate,
+            }),
+          });
+
+          // Move to posted regardless of response (single attempt, no retries)
+          await storage.updatePostStatus(post.id, "posted");
+          console.log(`Post ${post.id} sent to webhook and moved to 'posted' status`);
+          
+          // Recalculate dates
+          await recalculateApprovedPostsDates();
+        } catch (error) {
+          // Even if webhook fails, move to posted to prevent retries
+          console.error(`Failed to send post ${post.id} to webhook:`, error);
+          await storage.updatePostStatus(post.id, "posted");
+          await recalculateApprovedPostsDates();
+        }
+      }
+    } catch (error) {
+      console.error("Error processing due posts:", error);
+    }
+  }
+
+  // Start scheduler - check every 60 seconds
+  setInterval(processDuePosts, 60000);
+  
+  // Also run immediately on startup
+  setTimeout(processDuePosts, 5000);
+  
+  console.log("Post scheduler started - checking every 60 seconds (single attempt per post)");
 
   return httpServer;
 }

@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Sparkles, Loader2, Pause, Play, CheckCircle } from "lucide-react";
+import { Sparkles, Loader2, Pause, Play, CheckCircle, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Post, PostingSettings } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -281,6 +281,15 @@ export default function ReviewPosts() {
               )}
             </Button>
           )}
+          <Button 
+            variant="outline"
+            size="icon"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/posts"] })}
+            data-testid="button-refresh-posts"
+            title="Refresh posts"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
           <Button 
             onClick={handleOpenGenerateDialog} 
             disabled={isGenerating}

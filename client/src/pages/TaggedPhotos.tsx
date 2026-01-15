@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit } from "lucide-react";
+import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -303,6 +303,15 @@ export default function TaggedPhotos() {
                 </Button>
               </>
             )}
+            <Button 
+              variant="outline"
+              size="icon"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] })}
+              data-testid="button-refresh-photos"
+              title="Refresh photos"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
             <Button onClick={handleAdd} data-testid="button-add-photo">
               <Plus className="mr-2 h-4 w-4" />
               Add Photo

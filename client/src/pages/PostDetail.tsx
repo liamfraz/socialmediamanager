@@ -23,7 +23,7 @@ export default function PostDetail() {
   const [editedContent, setEditedContent] = useState<string | null>(null);
   const [editedImages, setEditedImages] = useState<string[] | null>(null);
   const [editedCollaborators, setEditedCollaborators] = useState<string[] | null>(null);
-  const [editedLayout, setEditedLayout] = useState<PostLayout | null>(null);
+  const [editedScheduledDate, setEditedScheduledDate] = useState<Date | null>(null);
 
   const { data: posts = [] } = useQuery<Post[]>({
     queryKey: ["/api/posts"],
@@ -54,8 +54,13 @@ export default function PostDetail() {
   });
 
   const updatePostMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { content?: string; images?: string[]; collaborators?: string[]; layout?: PostLayout } }) => {
-      return apiRequest("PUT", `/api/posts/${id}`, data);
+    mutationFn: async ({ id, data }: { id: string; data: { content?: string; images?: string[]; collaborators?: string[]; scheduledDate?: Date } }) => {
+      // Convert Date to ISO string for proper JSON serialization
+      const payload = {
+        ...data,
+        scheduledDate: data.scheduledDate ? data.scheduledDate.toISOString() : undefined,
+      };
+      return apiRequest("PUT", `/api/posts/${id}`, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
@@ -98,6 +103,24 @@ export default function PostDetail() {
     };
   }, [editedCollaborators, post?.id]);
 
+  // Auto-save scheduled date when it changes
+  const saveDateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (editedScheduledDate !== null && post) {
+      if (saveDateTimeoutRef.current) {
+        clearTimeout(saveDateTimeoutRef.current);
+      }
+      saveDateTimeoutRef.current = setTimeout(() => {
+        updatePostMutation.mutate({ id: post.id, data: { scheduledDate: editedScheduledDate } });
+      }, 500);
+    }
+    return () => {
+      if (saveDateTimeoutRef.current) {
+        clearTimeout(saveDateTimeoutRef.current);
+      }
+    };
+  }, [editedScheduledDate, post?.id]);
+
   if (!post) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -107,12 +130,12 @@ export default function PostDetail() {
   }
 
   const handleApprove = async () => {
-    if (editedContent !== null || editedImages !== null || editedCollaborators !== null || editedLayout !== null) {
-      const data: { content?: string; images?: string[]; collaborators?: string[]; layout?: PostLayout } = {};
+    if (editedContent !== null || editedImages !== null || editedCollaborators !== null || editedScheduledDate !== null) {
+      const data: { content?: string; images?: string[]; collaborators?: string[]; scheduledDate?: Date } = {};
       if (editedContent !== null) data.content = editedContent;
       if (editedImages !== null) data.images = editedImages;
       if (editedCollaborators !== null) data.collaborators = editedCollaborators;
-      if (editedLayout !== null) data.layout = editedLayout;
+      if (editedScheduledDate !== null) data.scheduledDate = editedScheduledDate;
       await updatePostMutation.mutateAsync({ id: post.id, data });
     }
 
@@ -139,12 +162,12 @@ export default function PostDetail() {
   };
 
   const handleSendToReview = async () => {
-    if (editedContent !== null || editedImages !== null || editedCollaborators !== null || editedLayout !== null) {
-      const data: { content?: string; images?: string[]; collaborators?: string[]; layout?: PostLayout } = {};
+    if (editedContent !== null || editedImages !== null || editedCollaborators !== null || editedScheduledDate !== null) {
+      const data: { content?: string; images?: string[]; collaborators?: string[]; scheduledDate?: Date } = {};
       if (editedContent !== null) data.content = editedContent;
       if (editedImages !== null) data.images = editedImages;
       if (editedCollaborators !== null) data.collaborators = editedCollaborators;
-      if (editedLayout !== null) data.layout = editedLayout;
+      if (editedScheduledDate !== null) data.scheduledDate = editedScheduledDate;
       await updatePostMutation.mutateAsync({ id: post.id, data });
     }
 
@@ -202,14 +225,13 @@ export default function PostDetail() {
             id={post.id}
             content={editedContent ?? post.content}
             status={post.status as PostStatus}
-            rowIndex={rowIndex}
+            scheduledDate={editedScheduledDate ?? (post.scheduledDate ? new Date(post.scheduledDate) : null)}
             images={editedImages ?? post.images ?? undefined}
             collaborators={editedCollaborators ?? post.collaborators ?? undefined}
-            layout={(editedLayout ?? (post as any).layout ?? "single") as PostLayout}
             onContentChange={setEditedContent}
             onImagesChange={setEditedImages}
             onCollaboratorsChange={setEditedCollaborators}
-            onLayoutChange={setEditedLayout}
+            onScheduledDateChange={setEditedScheduledDate}
           />
         </div>
       </main>

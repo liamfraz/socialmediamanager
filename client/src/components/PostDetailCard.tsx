@@ -36,6 +36,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Calendar, Clock, Plus, X, Search, Check, Users } from "lucide-react";
 import { SiInstagram } from "react-icons/si";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
@@ -128,33 +134,28 @@ interface PostDetailCardProps {
   id: string;
   content: string;
   status: PostStatus;
-  rowIndex?: number;
+  scheduledDate?: Date | null;
   images?: string[];
   collaborators?: string[];
   onContentChange?: (content: string) => void;
   onImagesChange?: (images: string[]) => void;
   onCollaboratorsChange?: (collaborators: string[]) => void;
+  onScheduledDateChange?: (date: Date) => void;
 }
 
 const INSTAGRAM_LIMIT = 2200;
-
-function getScheduledDate(rowIndex: number): Date {
-  const today = new Date();
-  const scheduledDate = addDays(today, rowIndex + 1);
-  scheduledDate.setHours(17, 0, 0, 0);
-  return scheduledDate;
-}
 
 export default function PostDetailCard({
   id,
   content,
   status,
-  rowIndex = 0,
+  scheduledDate: propScheduledDate,
   images = [],
   collaborators = [],
   onContentChange,
   onImagesChange,
   onCollaboratorsChange,
+  onScheduledDateChange,
 }: PostDetailCardProps) {
   const [editedContent, setEditedContent] = useState(content);
   const [currentImages, setCurrentImages] = useState<string[]>(images);
@@ -163,12 +164,40 @@ export default function PostDetailCard({
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+  
+  // Initialize scheduled date once - use prop or default to tomorrow at 5pm
+  const [scheduledDate, setScheduledDate] = useState<Date>(() => {
+    if (propScheduledDate) {
+      return new Date(propScheduledDate);
+    }
+    const d = addDays(new Date(), 1);
+    d.setHours(17, 0, 0, 0);
+    return d;
+  });
   
   const { data: taggedPhotos = [] } = useQuery<TaggedPhoto[]>({
     queryKey: ["/api/tagged-photos"],
   });
 
-  const scheduledDate = getScheduledDate(rowIndex);
+  const handleDateChange = (newDate: Date | undefined) => {
+    if (newDate) {
+      const updated = new Date(newDate);
+      updated.setHours(scheduledDate.getHours(), scheduledDate.getMinutes(), 0, 0);
+      setScheduledDate(updated);
+      onScheduledDateChange?.(updated);
+      setDatePickerOpen(false);
+    }
+  };
+
+  const handleTimeChange = (hours: number, minutes: number) => {
+    const updated = new Date(scheduledDate);
+    updated.setHours(hours, minutes, 0, 0);
+    setScheduledDate(updated);
+    onScheduledDateChange?.(updated);
+    setTimePickerOpen(false);
+  };
   const remaining = INSTAGRAM_LIMIT - editedContent.length;
   const isNearLimit = remaining < INSTAGRAM_LIMIT * 0.1;
   const isOverLimit = remaining < 0;
@@ -281,14 +310,77 @@ export default function PostDetailCard({
           <StatusBadge status={status} />
         </div>
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <Calendar className="h-4 w-4" />
-            <span>{format(scheduledDate, "MMM d, yyyy")}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Clock className="h-4 w-4" />
-            <span>{format(scheduledDate, "h:mm a")}</span>
-          </div>
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="flex items-center gap-1.5 h-auto py-1 px-2"
+                data-testid="button-edit-date"
+              >
+                <Calendar className="h-4 w-4" />
+                <span>{format(scheduledDate, "MMM d, yyyy")}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent
+                mode="single"
+                selected={scheduledDate}
+                onSelect={handleDateChange}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          <Popover open={timePickerOpen} onOpenChange={setTimePickerOpen}>
+            <PopoverTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="flex items-center gap-1.5 h-auto py-1 px-2"
+                data-testid="button-edit-time"
+              >
+                <Clock className="h-4 w-4" />
+                <span>{format(scheduledDate, "h:mm a")}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-3" align="start">
+              <div className="space-y-3">
+                <div className="text-sm font-medium">Select Time</div>
+                <div className="flex items-center gap-2">
+                  <Select 
+                    value={String(scheduledDate.getHours())} 
+                    onValueChange={(v) => handleTimeChange(parseInt(v), scheduledDate.getMinutes())}
+                  >
+                    <SelectTrigger className="w-20" data-testid="select-hour">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <SelectItem key={i} value={String(i)}>
+                          {i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span>:</span>
+                  <Select 
+                    value={String(scheduledDate.getMinutes())} 
+                    onValueChange={(v) => handleTimeChange(scheduledDate.getHours(), parseInt(v))}
+                  >
+                    <SelectTrigger className="w-20" data-testid="select-minute">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">00</SelectItem>
+                      <SelectItem value="15">15</SelectItem>
+                      <SelectItem value="30">30</SelectItem>
+                      <SelectItem value="45">45</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </CardHeader>
 

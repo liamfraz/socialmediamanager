@@ -123,17 +123,30 @@ export default function Dashboard() {
   });
 
   const handleTimeChange = (postId: string, newDate: Date) => {
-    // Optimistic update - update local state immediately
-    setLocalPosts(prev => prev.map(p => 
-      p.id === postId ? { ...p, scheduledDate: newDate } : p
-    ));
+    // Optimistic update - update local state immediately and re-sort by date
+    setLocalPosts(prev => {
+      const updated = prev.map(p => 
+        p.id === postId ? { ...p, scheduledDate: newDate } : p
+      );
+      // Re-sort by scheduled date (earliest first)
+      return updated.sort((a, b) => {
+        const dateA = a.scheduledDate ? new Date(a.scheduledDate).getTime() : 0;
+        const dateB = b.scheduledDate ? new Date(b.scheduledDate).getTime() : 0;
+        return dateA - dateB;
+      });
+    });
     updateTimeMutation.mutate({ postId, scheduledDate: newDate });
   };
 
   const approvedPosts = useMemo(() => {
     return posts
       .filter((post) => post.status === "approved")
-      .sort((a, b) => a.order - b.order);
+      .sort((a, b) => {
+        // Sort by scheduled date (earliest first)
+        const dateA = a.scheduledDate ? new Date(a.scheduledDate).getTime() : 0;
+        const dateB = b.scheduledDate ? new Date(b.scheduledDate).getTime() : 0;
+        return dateA - dateB;
+      });
   }, [posts]);
 
   useEffect(() => {

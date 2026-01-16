@@ -161,7 +161,7 @@ export default function ReviewPosts() {
 
   const updateTimeMutation = useMutation({
     mutationFn: async ({ postId, scheduledDate }: { postId: string; scheduledDate: Date }) => {
-      return apiRequest("PUT", `/api/posts/${postId}`, { scheduledDate });
+      return apiRequest("PUT", `/api/posts/${postId}`, { scheduledDate: scheduledDate.toISOString() });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
@@ -170,13 +170,36 @@ export default function ReviewPosts() {
   });
 
   const handleTimeChange = (postId: string, newDate: Date) => {
+    // Optimistic update with re-sort
+    setLocalPosts(prev => {
+      const updated = prev.map(p => 
+        p.id === postId ? { ...p, scheduledDate: newDate } : p
+      );
+      // Re-sort by scheduled date (earliest first) for approved posts
+      if (activeFilter === "approved") {
+        return updated.sort((a, b) => {
+          const dateA = a.scheduledDate ? new Date(a.scheduledDate).getTime() : 0;
+          const dateB = b.scheduledDate ? new Date(b.scheduledDate).getTime() : 0;
+          return dateA - dateB;
+        });
+      }
+      return updated;
+    });
     updateTimeMutation.mutate({ postId, scheduledDate: newDate });
   };
 
   const filteredPosts = useMemo(() => {
     return posts
       .filter((post) => post.status === activeFilter)
-      .sort((a, b) => a.order - b.order);
+      .sort((a, b) => {
+        // Sort by scheduled date (earliest first) for approved posts, otherwise by order
+        if (activeFilter === "approved") {
+          const dateA = a.scheduledDate ? new Date(a.scheduledDate).getTime() : 0;
+          const dateB = b.scheduledDate ? new Date(b.scheduledDate).getTime() : 0;
+          return dateA - dateB;
+        }
+        return a.order - b.order;
+      });
   }, [posts, activeFilter]);
 
   useEffect(() => {

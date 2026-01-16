@@ -46,7 +46,7 @@ import { Calendar, Clock, Plus, X, Search, Check, Users } from "lucide-react";
 import { SiInstagram } from "react-icons/si";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
 import ImageCarousel from "./ImageCarousel";
-import { format, addDays } from "date-fns";
+import { format, addDays, isToday } from "date-fns";
 import type { TaggedPhoto } from "@shared/schema";
 
 interface SortableImageProps {
@@ -194,10 +194,32 @@ export default function PostDetailCard({
   const handleTimeChange = (hours: number, minutes: number) => {
     const updated = new Date(scheduledDate);
     updated.setHours(hours, minutes, 0, 0);
+    
+    // If selecting a time in the past for today, adjust to next valid quarter-hour
+    if (isToday(scheduledDate)) {
+      const now = new Date();
+      if (updated <= now) {
+        // Find the next valid quarter-hour
+        const nextValid = new Date(now);
+        nextValid.setMinutes(Math.ceil(now.getMinutes() / 15) * 15 + 15, 0, 0);
+        updated.setHours(nextValid.getHours(), nextValid.getMinutes(), 0, 0);
+      }
+    }
+    
     setScheduledDate(updated);
     onScheduledDateChange?.(updated);
     setTimePickerOpen(false);
   };
+
+  // Check if a time option is in the past (only relevant for today)
+  const isTimePast = (hours: number, minutes: number) => {
+    if (!isToday(scheduledDate)) return false;
+    const now = new Date();
+    const testTime = new Date(scheduledDate);
+    testTime.setHours(hours, minutes, 0, 0);
+    return testTime <= now;
+  };
+
   const remaining = INSTAGRAM_LIMIT - editedContent.length;
   const isNearLimit = remaining < INSTAGRAM_LIMIT * 0.1;
   const isOverLimit = remaining < 0;
@@ -327,6 +349,7 @@ export default function PostDetailCard({
                 mode="single"
                 selected={scheduledDate}
                 onSelect={handleDateChange}
+                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                 initialFocus
               />
             </PopoverContent>
@@ -356,7 +379,11 @@ export default function PostDetailCard({
                     </SelectTrigger>
                     <SelectContent>
                       {Array.from({ length: 24 }, (_, i) => (
-                        <SelectItem key={i} value={String(i)}>
+                        <SelectItem 
+                          key={i} 
+                          value={String(i)}
+                          disabled={isTimePast(i, 59)}
+                        >
                           {i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}
                         </SelectItem>
                       ))}
@@ -371,10 +398,10 @@ export default function PostDetailCard({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="0">00</SelectItem>
-                      <SelectItem value="15">15</SelectItem>
-                      <SelectItem value="30">30</SelectItem>
-                      <SelectItem value="45">45</SelectItem>
+                      <SelectItem value="0" disabled={isTimePast(scheduledDate.getHours(), 0)}>00</SelectItem>
+                      <SelectItem value="15" disabled={isTimePast(scheduledDate.getHours(), 15)}>15</SelectItem>
+                      <SelectItem value="30" disabled={isTimePast(scheduledDate.getHours(), 30)}>30</SelectItem>
+                      <SelectItem value="45" disabled={isTimePast(scheduledDate.getHours(), 45)}>45</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

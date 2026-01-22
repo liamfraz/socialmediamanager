@@ -699,6 +699,28 @@ export async function registerRoutes(
     }
   });
 
+  // Get available tagged photos (not yet posted)
+  app.get("/api/tagged-photos/available", async (req, res) => {
+    try {
+      const photos = await storage.getAvailableTaggedPhotos();
+      res.json(photos);
+    } catch (error) {
+      console.error("Error fetching available photos:", error);
+      res.status(500).json({ error: "Failed to fetch available photos" });
+    }
+  });
+
+  // Get posted tagged photos
+  app.get("/api/tagged-photos/posted", async (req, res) => {
+    try {
+      const photos = await storage.getPostedTaggedPhotos();
+      res.json(photos);
+    } catch (error) {
+      console.error("Error fetching posted photos:", error);
+      res.status(500).json({ error: "Failed to fetch posted photos" });
+    }
+  });
+
   // Debug endpoint to see all photos in database (for troubleshooting)
   app.get("/api/tagged-photos/debug-all", async (req, res) => {
     try {
@@ -909,6 +931,11 @@ export async function registerRoutes(
         if (verified) {
           // Move post to "posted" status only after n8n confirms
           await storage.updatePostStatus(post.id, "posted");
+          // Mark any tagged photos used in this post as "posted"
+          if (post.images && post.images.length > 0) {
+            const markedCount = await storage.markPhotosAsPosted(post.images);
+            console.log(`Marked ${markedCount} tagged photos as posted for post ${post.id}`);
+          }
           // Recalculate remaining approved posts dates
           await recalculateApprovedPostsDates();
           console.log(`Manual post ${post.id} verified by n8n and moved to 'posted' status`);
@@ -949,6 +976,11 @@ export async function registerRoutes(
         if (!POSTING_WEBHOOK_URL) {
           console.log("No webhook URL configured. Moving post to posted:", post.id);
           await storage.updatePostStatus(post.id, "posted");
+          // Mark any tagged photos used in this post as "posted"
+          if (post.images && post.images.length > 0) {
+            const markedCount = await storage.markPhotosAsPosted(post.images);
+            console.log(`Marked ${markedCount} tagged photos as posted for post ${post.id}`);
+          }
           continue;
         }
 
@@ -972,6 +1004,11 @@ export async function registerRoutes(
 
           // Move to posted regardless of response (single attempt, no retries)
           await storage.updatePostStatus(post.id, "posted");
+          // Mark any tagged photos used in this post as "posted"
+          if (post.images && post.images.length > 0) {
+            const markedCount = await storage.markPhotosAsPosted(post.images);
+            console.log(`Marked ${markedCount} tagged photos as posted for post ${post.id}`);
+          }
           console.log(`Post ${post.id} sent to webhook and moved to 'posted' status`);
           
           // Recalculate dates
@@ -980,6 +1017,11 @@ export async function registerRoutes(
           // Even if webhook fails, move to posted to prevent retries
           console.error(`Failed to send post ${post.id} to webhook:`, error);
           await storage.updatePostStatus(post.id, "posted");
+          // Mark any tagged photos used in this post as "posted"
+          if (post.images && post.images.length > 0) {
+            const markedCount = await storage.markPhotosAsPosted(post.images);
+            console.log(`Marked ${markedCount} tagged photos as posted for post ${post.id}`);
+          }
           await recalculateApprovedPostsDates();
         }
       }

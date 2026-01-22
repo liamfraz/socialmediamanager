@@ -16,9 +16,12 @@ Preferred communication style: Simple, everyday language.
 
 **Framework**: React 18 with TypeScript, using Vite as the build tool and development server.
 
-**Routing**: Wouter for lightweight client-side routing with two main routes:
+**Routing**: Wouter for lightweight client-side routing with main routes:
 - Dashboard view (`/`) - Displays all posts in a filterable list
 - Post detail view (`/post/:id`) - Individual post editing and approval interface
+- Review Posts (`/review`) - Post review workflow with status tabs
+- Posted Posts (`/posted`) - Published posts with "Posted Photos" viewer
+- Tagged Photos (`/tagged-photos`) - Photo library from Google Drive
 
 **State Management**: TanStack Query (React Query) for server state management with optimistic updates and automatic cache invalidation. No global client state management library is used.
 
@@ -63,10 +66,18 @@ Preferred communication style: Simple, everyday language.
 - `posts` table - Social media posts with fields:
   - `id` (UUID primary key)
   - `content` (text)
-  - `status` (enum: pending/approved/rejected/draft)
+  - `status` (enum: pending/approved/rejected/draft/posted)
   - `scheduledDate` (timestamp)
   - `images` (text array for image URLs)
   - `order` (integer for manual sorting)
+- `tagged_photos` table - Photos from Google Drive for use in posts:
+  - `id` (UUID primary key)
+  - `photoId` (text - Google Photos ID)
+  - `photoUrl` (text - URL to the photo)
+  - `description` (text)
+  - `tags` (text array)
+  - `status` (enum: available/posted) - tracks if photo has been used in a published post
+  - `postedAt` (timestamp) - when the photo was posted
 
 **Migration Strategy**: Drizzle Kit for schema migrations with `drizzle.config.ts` configuration pointing to `shared/schema.ts`.
 

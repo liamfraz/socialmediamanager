@@ -76,6 +76,11 @@ export const reorderSchema = z.object({
 export type InsertPost = z.infer<typeof insertPostSchema>;
 export type Post = typeof posts.$inferSelect;
 
+// Tagged photo status values
+export const taggedPhotoStatusValues = ["available", "posted"] as const;
+export type TaggedPhotoStatus = typeof taggedPhotoStatusValues[number];
+export const taggedPhotoStatusEnum = z.enum(taggedPhotoStatusValues);
+
 // Tagged Photos table
 export const taggedPhotos = pgTable("tagged_photos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -84,6 +89,8 @@ export const taggedPhotos = pgTable("tagged_photos", {
   photoUrl: text("photo_url").notNull(),
   description: text("description"),
   tags: text("tags").array(),
+  status: text("status").notNull().default("available"),
+  postedAt: timestamp("posted_at"),
 });
 
 export const insertTaggedPhotoSchema = createInsertSchema(taggedPhotos).omit({

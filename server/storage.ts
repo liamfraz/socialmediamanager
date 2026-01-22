@@ -18,12 +18,15 @@ export interface IStorage {
 
   // Tagged Photos operations - shared library (single user mode)
   getAllTaggedPhotos(): Promise<TaggedPhoto[]>;
+  getAvailableTaggedPhotos(): Promise<TaggedPhoto[]>;
+  getPostedTaggedPhotos(): Promise<TaggedPhoto[]>;
   getUnassignedTaggedPhotos(): Promise<TaggedPhoto[]>;
   getTaggedPhoto(id: string): Promise<TaggedPhoto | undefined>;
   createTaggedPhoto(photo: InsertTaggedPhoto, userId?: string): Promise<TaggedPhoto>;
   updateTaggedPhoto(id: string, data: Partial<InsertTaggedPhoto>): Promise<TaggedPhoto | undefined>;
   deleteTaggedPhoto(id: string): Promise<boolean>;
   claimTaggedPhotos(photoIds: string[], userId: string): Promise<number>;
+  markPhotosAsPosted(photoUrls: string[]): Promise<number>;
 
   // Posting Settings operations
   getPostingSettings(): Promise<PostingSettings>;
@@ -109,6 +112,14 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(taggedPhotos);
   }
 
+  async getAvailableTaggedPhotos(): Promise<TaggedPhoto[]> {
+    return db.select().from(taggedPhotos).where(eq(taggedPhotos.status, "available"));
+  }
+
+  async getPostedTaggedPhotos(): Promise<TaggedPhoto[]> {
+    return db.select().from(taggedPhotos).where(eq(taggedPhotos.status, "posted")).orderBy(desc(taggedPhotos.postedAt));
+  }
+
   async getTaggedPhoto(id: string): Promise<TaggedPhoto | undefined> {
     const [photo] = await db.select().from(taggedPhotos).where(eq(taggedPhotos.id, id));
     return photo || undefined;
@@ -141,6 +152,23 @@ export class DatabaseStorage implements IStorage {
       .update(taggedPhotos)
       .set({ userId })
       .where(and(inArray(taggedPhotos.id, photoIds), isNull(taggedPhotos.userId)))
+      .returning();
+    return result.length;
+  }
+
+  async markPhotosAsPosted(photoUrls: string[]): Promise<number> {
+    if (photoUrls.length === 0) return 0;
+    const { inArray, or } = await import("drizzle-orm");
+    // Match on either photoUrl or photoId to handle both URL and ID formats
+    const result = await db
+      .update(taggedPhotos)
+      .set({ status: "posted", postedAt: new Date() })
+      .where(
+        or(
+          inArray(taggedPhotos.photoUrl, photoUrls),
+          inArray(taggedPhotos.photoId, photoUrls)
+        )
+      )
       .returning();
     return result.length;
   }

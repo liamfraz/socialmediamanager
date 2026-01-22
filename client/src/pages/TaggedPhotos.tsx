@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit, RefreshCw, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,15 @@ export default function TaggedPhotos() {
     queryKey: ["/api/tagged-photos"],
     refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
+
+  // Get photos currently in prepared posts (draft/pending/approved)
+  const { data: photosInPosts = [] } = useQuery<string[]>({
+    queryKey: ["/api/tagged-photos/in-posts"],
+    refetchInterval: 5000,
+  });
+
+  // Create a set of photo URLs that are in posts for quick lookup
+  const photosInPostsSet = useMemo(() => new Set(photosInPosts), [photosInPosts]);
 
   // Log any errors
   if (isError) {
@@ -248,6 +257,12 @@ export default function TaggedPhotos() {
     return url;
   };
 
+  // Check if a photo is currently in a prepared post
+  const isPhotoInPost = (photo: TaggedPhoto) => {
+    const directUrl = getDirectImageUrl(photo.photoUrl);
+    return photosInPostsSet.has(photo.photoUrl) || photosInPostsSet.has(directUrl);
+  };
+
   const handlePhotoIdChange = (value: string) => {
     setFormData((prev) => ({
       ...prev,
@@ -412,8 +427,16 @@ export default function TaggedPhotos() {
                         />
                       </button>
                     </TableCell>
-                    <TableCell className="max-w-xs truncate">
-                      {photo.description || "-"}
+                    <TableCell className="max-w-xs">
+                      <div className="flex flex-col gap-1">
+                        <span className="truncate">{photo.description || "-"}</span>
+                        {isPhotoInPost(photo) && (
+                          <Badge variant="default" className="w-fit text-xs gap-1">
+                            <FileText className="h-3 w-3" />
+                            In Post
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">

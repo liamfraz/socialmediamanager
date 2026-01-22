@@ -721,6 +721,32 @@ export async function registerRoutes(
     }
   });
 
+  // Get photos that are currently in prepared posts (draft/pending/approved - not yet posted)
+  app.get("/api/tagged-photos/in-posts", async (req, res) => {
+    try {
+      // Get all posts that are not yet posted
+      const allPosts = await storage.getAllPosts();
+      const preparedPosts = allPosts.filter(p => 
+        p.status === "draft" || p.status === "pending" || p.status === "approved"
+      );
+      
+      // Collect all image URLs from these posts
+      const imageUrlsInPosts = new Set<string>();
+      for (const post of preparedPosts) {
+        if (post.images && post.images.length > 0) {
+          for (const img of post.images) {
+            imageUrlsInPosts.add(img);
+          }
+        }
+      }
+      
+      res.json(Array.from(imageUrlsInPosts));
+    } catch (error) {
+      console.error("Error fetching photos in posts:", error);
+      res.status(500).json({ error: "Failed to fetch photos in posts" });
+    }
+  });
+
   // Debug endpoint to see all photos in database (for troubleshooting)
   app.get("/api/tagged-photos/debug-all", async (req, res) => {
     try {

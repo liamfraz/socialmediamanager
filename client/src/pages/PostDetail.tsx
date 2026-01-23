@@ -237,13 +237,13 @@ export default function PostDetail() {
       </main>
 
       <ActionPanel
-        status={post.status as "pending" | "approved" | "rejected" | "draft"}
+        status={post.status as "pending" | "approved" | "rejected" | "draft" | "posted"}
         onApprove={() => setApproveModalOpen(true)}
         onReject={() => setRejectModalOpen(true)}
         onSendToReview={() => setSendToReviewModalOpen(true)}
         onPostNow={() => setPostNowModalOpen(true)}
         onDelete={() => setDeleteModalOpen(true)}
-        onBack={() => setLocation("/review")}
+        onBack={() => post.status === "posted" ? setLocation("/posted") : setLocation("/review")}
         isPostingNow={postNowMutation.isPending}
       />
 

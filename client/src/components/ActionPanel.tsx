@@ -1,8 +1,9 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Check, X, ArrowLeft, RotateCcw, Send, Trash2 } from "lucide-react";
+import { Check, X, ArrowLeft, RotateCcw, Send, Trash2, MoveRight } from "lucide-react";
 
 interface ActionPanelProps {
-  status?: "pending" | "approved" | "rejected" | "draft";
+  status?: "pending" | "approved" | "rejected" | "draft" | "posted";
   onApprove?: () => void;
   onReject?: () => void;
   onSendToReview?: () => void;
@@ -24,8 +25,10 @@ export default function ActionPanel({
   isLoading = false,
   isPostingNow = false,
 }: ActionPanelProps) {
+  const [showMoveOptions, setShowMoveOptions] = useState(false);
   const isApproved = status === "approved";
   const isRejected = status === "rejected";
+  const isPosted = status === "posted";
 
   return (
     <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-4 border-t bg-background px-6 py-4">
@@ -36,11 +39,53 @@ export default function ActionPanel({
         data-testid="button-back"
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Review Posts
+        {isPosted ? "Back to Posted" : "Back to Review Posts"}
       </Button>
 
       <div className="flex flex-wrap items-center gap-3">
-        {isApproved ? (
+        {isPosted ? (
+          showMoveOptions ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setShowMoveOptions(false)}
+                disabled={isLoading}
+                data-testid="button-cancel-move"
+              >
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                onClick={onSendToReview}
+                disabled={isLoading}
+                data-testid="button-move-to-review"
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Move to Review
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={onDelete}
+                disabled={isLoading}
+                data-testid="button-delete-post"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Post
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => setShowMoveOptions(true)}
+              disabled={isLoading}
+              data-testid="button-move-post"
+            >
+              <MoveRight className="mr-2 h-4 w-4" />
+              Move Post
+            </Button>
+          )
+        ) : isApproved ? (
           <>
             <Button
               variant="outline"

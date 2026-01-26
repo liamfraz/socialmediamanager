@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit, RefreshCw, FileText, Upload } from "lucide-react";
+import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit, RefreshCw, FileText, Upload, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { TaggedPhoto } from "@shared/schema";
@@ -37,6 +44,7 @@ export default function TaggedPhotos() {
   const [editingPhoto, setEditingPhoto] = useState<TaggedPhoto | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [currentPage, setCurrentPage] = useState(1);
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string; description: string; tags: string[] } | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
@@ -68,20 +76,31 @@ export default function TaggedPhotos() {
   }
 
 
-  // Filter photos based on search term (case-insensitive tag matching)
+  // Filter and sort photos
   const filteredPhotos = useMemo(() => {
-    if (!searchTerm.trim()) return photos;
+    let result = photos;
     
-    const searchWords = searchTerm.toLowerCase().trim().split(/\s+/);
-    return photos.filter((photo) => {
-      if (!photo.tags || photo.tags.length === 0) return false;
-      const photoTags = photo.tags.map((tag) => tag.toLowerCase());
-      // Every search word must match at least one tag (partial match)
-      return searchWords.every((word) =>
-        photoTags.some((tag) => tag.includes(word))
-      );
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const searchWords = searchTerm.toLowerCase().trim().split(/\s+/);
+      result = result.filter((photo) => {
+        if (!photo.tags || photo.tags.length === 0) return false;
+        const photoTags = photo.tags.map((tag) => tag.toLowerCase());
+        return searchWords.every((word) =>
+          photoTags.some((tag) => tag.includes(word))
+        );
+      });
+    }
+    
+    // Sort by date added
+    result = [...result].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
     });
-  }, [photos, searchTerm]);
+    
+    return result;
+  }, [photos, searchTerm, sortOrder]);
 
   // Pagination
   const totalPages = Math.ceil(filteredPhotos.length / ITEMS_PER_PAGE);
@@ -305,6 +324,16 @@ export default function TaggedPhotos() {
                 data-testid="input-search-tags"
               />
             </div>
+            <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as "newest" | "oldest")}>
+              <SelectTrigger className="w-40" data-testid="select-sort-order">
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">Newest First</SelectItem>
+                <SelectItem value="oldest">Oldest First</SelectItem>
+              </SelectContent>
+            </Select>
             {selectedPhotos.size > 0 && (
               <>
                 <Button 

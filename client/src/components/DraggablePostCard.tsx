@@ -5,8 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { GripVertical, Images, Clock, Calendar, Loader2, CheckCircle } from "lucide-react";
+import { Images, Clock, Calendar, Loader2, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 
 interface DraggablePostCardProps {
@@ -21,6 +22,9 @@ interface DraggablePostCardProps {
   showCreatedDate?: boolean;
   isPaused?: boolean; // undefined = neutral, true = paused (red), false = active (green)
   isNewlyCreated?: boolean; // Show loading then tick animation
+  showCheckbox?: boolean; // Show checkbox instead of drag handle
+  isSelected?: boolean; // Whether the checkbox is checked
+  onSelectionChange?: (id: string, selected: boolean) => void;
 }
 
 export default function DraggablePostCard({
@@ -35,6 +39,9 @@ export default function DraggablePostCard({
   showCreatedDate = false,
   isPaused,
   isNewlyCreated = false,
+  showCheckbox = false,
+  isSelected = false,
+  onSelectionChange,
 }: DraggablePostCardProps) {
   const [timePopoverOpen, setTimePopoverOpen] = useState(false);
   const [showTick, setShowTick] = useState(false);
@@ -213,16 +220,17 @@ export default function DraggablePostCard({
           }`}
           data-testid={`draggable-post-${id}`}
         >
-          <button
-            type="button"
-            {...attributes}
-            {...listeners}
-            className="cursor-grab touch-none p-1 rounded hover:bg-muted"
-            data-testid={`drag-handle-${id}`}
-            aria-label="Drag to reorder"
-          >
-            <GripVertical className="h-5 w-5 text-muted-foreground" />
-          </button>
+          {showCheckbox ? (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={(checked) => onSelectionChange?.(id, !!checked)}
+              className="h-5 w-5"
+              data-testid={`checkbox-select-${id}`}
+              aria-label="Select post for deletion"
+            />
+          ) : (
+            <div className="w-5 h-5" />
+          )}
 
           {hasImages && (
             <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md">

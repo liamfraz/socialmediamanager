@@ -410,6 +410,35 @@ export async function registerRoutes(
     }
   });
 
+  // Mass delete posts - scoped to current user
+  app.post("/api/posts/mass-delete", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const { postIds } = req.body;
+      if (!Array.isArray(postIds) || postIds.length === 0) {
+        return res.status(400).json({ error: "postIds array required" });
+      }
+
+      let deletedCount = 0;
+      for (const postId of postIds) {
+        const existingPost = await storage.getPost(postId);
+        if (existingPost && existingPost.userId === userId) {
+          const deleted = await storage.deletePost(postId);
+          if (deleted) deletedCount++;
+        }
+      }
+
+      res.json({ success: true, deletedCount });
+    } catch (error) {
+      console.error("Error mass deleting posts:", error);
+      res.status(500).json({ error: "Failed to delete posts" });
+    }
+  });
+
   // Seed initial data if database is empty AND create demo/jackfoley users
   app.post("/api/seed", async (_req, res) => {
     try {

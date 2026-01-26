@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Sparkles, Loader2, Pause, Play, CheckCircle, RefreshCw, AlertCircle, Check } from "lucide-react";
+import { Sparkles, Loader2, Pause, Play, CheckCircle, RefreshCw, AlertCircle, Check, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Post, PostingSettings, PhotoFolder } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -31,8 +31,57 @@ export default function ReviewPosts() {
   const [generationErrors, setGenerationErrors] = useState<Record<number, string>>({});
   const [newlyCreatedPosts, setNewlyCreatedPosts] = useState<Set<string>>(new Set());
   const [selectedFolderId, setSelectedFolderId] = useState<string>("all");
+  const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set());
   const knownPostIdsRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
+
+  // Mass delete mutation
+  const massDeleteMutation = useMutation({
+    mutationFn: async (postIds: string[]) => {
+      return apiRequest("POST", "/api/posts/mass-delete", { postIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
+      setSelectedPostIds(new Set());
+      toast({
+        title: "Posts deleted",
+        description: `Successfully deleted ${selectedPostIds.size} post(s).`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete posts. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSelectionChange = (id: string, selected: boolean) => {
+    setSelectedPostIds(prev => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedPostIds.size === 0) return;
+    massDeleteMutation.mutate(Array.from(selectedPostIds));
+  };
+
+  const handleSelectAll = () => {
+    const pendingPosts = posts.filter(p => p.status === "pending");
+    if (selectedPostIds.size === pendingPosts.length) {
+      setSelectedPostIds(new Set());
+    } else {
+      setSelectedPostIds(new Set(pendingPosts.map(p => p.id)));
+    }
+  };
 
   useEffect(() => {
     apiRequest("POST", "/api/seed").catch(() => {});
@@ -351,6 +400,34 @@ export default function ReviewPosts() {
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-4 flex-wrap">
+          {activeFilter === "pending" && counts.pending > 0 && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAll}
+                data-testid="button-select-all"
+              >
+                {selectedPostIds.size === counts.pending ? "Deselect All" : "Select All"}
+              </Button>
+              {selectedPostIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteSelected}
+                  disabled={massDeleteMutation.isPending}
+                  data-testid="button-delete-selected"
+                >
+                  {massDeleteMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  Delete ({selectedPostIds.size})
+                </Button>
+              )}
+            </>
+          )}
           {activeFilter === "approved" && (
             <Button
               variant={isPaused ? "outline" : "default"}
@@ -541,6 +618,9 @@ export default function ReviewPosts() {
                       showDateTime={activeFilter === "approved" || activeFilter === "posted"}
                       showCreatedDate={activeFilter === "pending"}
                       isNewlyCreated={newlyCreatedPosts.has(post.id)}
+                      showCheckbox={activeFilter === "pending"}
+                      isSelected={selectedPostIds.has(post.id)}
+                      onSelectionChange={handleSelectionChange}
                     />
                   ))}
                 </div>

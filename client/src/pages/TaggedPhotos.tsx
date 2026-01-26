@@ -768,35 +768,6 @@ export default function TaggedPhotos() {
             <DialogTitle>{editingPhoto ? "Edit Photo" : "Add Photo"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {editingPhoto && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Photo ID</label>
-                <Input
-                  value={editingPhoto.id}
-                  readOnly
-                  className="bg-muted cursor-not-allowed"
-                  data-testid="input-photo-uuid"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Internal identifier (read-only)
-                </p>
-              </div>
-            )}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Google Drive Photo ID</label>
-              <Input
-                placeholder="e.g., 1NkANuUpNLNVov_24Jl-ZEKlM1itVwNgc"
-                value={formData.photoId}
-                onChange={(e) => handlePhotoIdChange(e.target.value)}
-                readOnly={!!editingPhoto}
-                className={editingPhoto ? "bg-muted cursor-not-allowed" : ""}
-                data-testid="input-photo-id"
-              />
-              <p className="text-xs text-muted-foreground">
-                {editingPhoto ? "Cannot be changed after creation" : "The ID from your Google Drive share link"}
-              </p>
-            </div>
-            
             {formData.photoUrl && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Preview</label>
@@ -830,6 +801,35 @@ export default function TaggedPhotos() {
                 data-testid="input-tags"
               />
               <p className="text-xs text-muted-foreground">Separate tags with commas</p>
+            </div>
+
+            {editingPhoto && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Photo ID</label>
+                <Input
+                  value={editingPhoto.id}
+                  readOnly
+                  className="bg-muted cursor-not-allowed"
+                  data-testid="input-photo-uuid"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Internal identifier (read-only)
+                </p>
+              </div>
+            )}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Google Drive Photo ID</label>
+              <Input
+                placeholder="e.g., 1NkANuUpNLNVov_24Jl-ZEKlM1itVwNgc"
+                value={formData.photoId}
+                onChange={(e) => handlePhotoIdChange(e.target.value)}
+                readOnly={!!editingPhoto}
+                className={editingPhoto ? "bg-muted cursor-not-allowed" : ""}
+                data-testid="input-photo-id"
+              />
+              <p className="text-xs text-muted-foreground">
+                {editingPhoto ? "Cannot be changed after creation" : "The ID from your Google Drive share link"}
+              </p>
             </div>
           </div>
           <DialogFooter>

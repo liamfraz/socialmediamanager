@@ -521,7 +521,7 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      const { topics, maxPhotos = 10 } = req.body;
+      const { topics, maxPhotos = 10, folderId } = req.body;
 
       if (!topics || !Array.isArray(topics) || topics.length === 0) {
         return res.status(400).json({ error: "topics array is required" });
@@ -533,12 +533,25 @@ export async function registerRoutes(
         });
       }
 
-      // Fetch all available tagged photos (shared library)
-      const allPhotos = await storage.getAllTaggedPhotos();
+      // Fetch tagged photos - filter by folder if specified
+      let allPhotos = await storage.getAllTaggedPhotos();
+      
+      if (folderId) {
+        if (folderId === "unfiled") {
+          // Only get photos without a folder
+          allPhotos = allPhotos.filter(p => !p.folderId);
+        } else {
+          // Get photos from specific folder
+          allPhotos = allPhotos.filter(p => p.folderId === folderId);
+        }
+      }
 
       if (allPhotos.length === 0) {
+        const folderMessage = folderId 
+          ? (folderId === "unfiled" ? "No unfiled photos available." : "No photos in the selected folder.")
+          : "No photos in library. Upload photos first.";
         return res.status(400).json({
-          error: "No photos in library. Upload photos first."
+          error: folderMessage
         });
       }
 

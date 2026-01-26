@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Sparkles, Loader2, Pause, Play, CheckCircle, RefreshCw, AlertCircle, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { Post, PostingSettings } from "@shared/schema";
+import type { Post, PostingSettings, PhotoFolder } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type FilterType = "pending" | "approved" | "rejected" | "posted";
@@ -30,6 +30,7 @@ export default function ReviewPosts() {
   const [generationStatus, setGenerationStatus] = useState<Record<number, "pending" | "generating" | "done" | "error">>({});
   const [generationErrors, setGenerationErrors] = useState<Record<number, string>>({});
   const [newlyCreatedPosts, setNewlyCreatedPosts] = useState<Set<string>>(new Set());
+  const [selectedFolderId, setSelectedFolderId] = useState<string>("all");
   const knownPostIdsRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
 
@@ -42,6 +43,11 @@ export default function ReviewPosts() {
   // Fetch posting settings
   const { data: postingSettings } = useQuery<PostingSettings>({
     queryKey: ["/api/posting-settings"],
+  });
+
+  // Fetch folders for the dropdown
+  const { data: folders = [] } = useQuery<PhotoFolder[]>({
+    queryKey: ["/api/folders"],
   });
 
   // Toggle pause mutation
@@ -59,6 +65,7 @@ export default function ReviewPosts() {
 
   const handleOpenGenerateDialog = () => {
     setPostTopics([""]);
+    setSelectedFolderId("all");
     setShowGenerateDialog(true);
   };
 
@@ -103,7 +110,8 @@ export default function ReviewPosts() {
 
     try {
       const response = await apiRequest("POST", "/api/generate-posts", {
-        topics: filledTopics.map(t => t.trim())
+        topics: filledTopics.map(t => t.trim()),
+        folderId: selectedFolderId !== "all" ? selectedFolderId : undefined
       });
       const data = await response.json();
 
@@ -409,6 +417,21 @@ export default function ReviewPosts() {
                   <SelectItem value="3">3</SelectItem>
                   <SelectItem value="4">4</SelectItem>
                   <SelectItem value="5">5</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3">
+              <Label htmlFor="folder-filter" className="whitespace-nowrap">From folder</Label>
+              <Select value={selectedFolderId} onValueChange={setSelectedFolderId} disabled={isGenerating}>
+                <SelectTrigger id="folder-filter" className="flex-1" data-testid="select-folder-filter">
+                  <SelectValue placeholder="All folders" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All folders</SelectItem>
+                  <SelectItem value="unfiled">Unfiled photos</SelectItem>
+                  {folders.map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id}>{folder.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

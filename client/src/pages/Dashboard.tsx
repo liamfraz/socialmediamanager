@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 
 function WeekAheadCalendar({ posts }: { posts: Post[] }) {
   const today = new Date();
-  const days = Array.from({ length: 6 }, (_, i) => addDays(today, i + 1));
+  const days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
 
   // Match posts to their actual scheduled dates
   const getPostForDay = (day: Date) => {
@@ -29,12 +29,12 @@ function WeekAheadCalendar({ posts }: { posts: Post[] }) {
   return (
     <div className="mb-6 rounded-lg border bg-card p-5">
       <h3 className="mb-4 text-base font-semibold">Upcoming Schedule</h3>
-      <div className="grid grid-cols-6 gap-3">
+      <div className="grid grid-cols-7 gap-3">
         {days.map((day, index) => {
           const post = getPostForDay(day);
           const hasPost = !!post;
           const firstImage = post?.images?.[0];
-          const dayName = isTomorrow(day) ? "Tomorrow" : format(day, "EEE");
+          const dayName = isToday(day) ? "Today" : isTomorrow(day) ? "Tomorrow" : format(day, "EEE");
           const dayNum = format(day, "d");
           const month = format(day, "MMM");
           

@@ -33,6 +33,7 @@ export async function authenticateUser(username: string, password: string): Prom
 declare module "express-session" {
   interface SessionData {
     userId: string;
+    instagramOAuthState?: string;
   }
 }
 

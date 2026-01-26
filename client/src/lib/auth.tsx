@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import { apiRequest } from "./queryClient";
+import { apiRequest, queryClient } from "./queryClient";
 
 interface AuthUser {
   id: string;
@@ -42,6 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!response.ok) {
       throw new Error(data.error || "Login failed");
     }
+    // Clear all cached data from previous user session
+    queryClient.clear();
     setUser(data);
   }
 
@@ -51,11 +53,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!response.ok) {
       throw new Error(data.error || "Registration failed");
     }
+    // Clear any cached data before starting with the new user
+    queryClient.clear();
     setUser(data);
   }
 
   async function logout() {
     await apiRequest("POST", "/api/auth/logout", {});
+    // Clear all cached data to prevent data leaking between users
+    queryClient.clear();
     setUser(null);
   }
 

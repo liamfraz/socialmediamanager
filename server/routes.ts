@@ -4,10 +4,67 @@ import { storage } from "./storage";
 import { insertPostSchema, updatePostSchema, postStatusEnum, reorderSchema, insertTaggedPhotoSchema, updateTaggedPhotoSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 import { hashPassword, verifyPassword, requireAuth, getCurrentUser } from "./auth";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { analyzeImageForTags, isOpenAIConfigured, regenerateCaption } from "./openai";
+import { generatePost, isPostGenerationAvailable, type PhotoForAI } from "./post-generator";
+import {
+  isInstagramConfigured,
+  getInstagramAuthUrl,
+  exchangeCodeForToken,
+  postToInstagram,
+} from "./instagram";
 
-// Webhook URL from environment
-const POSTING_WEBHOOK_URL = process.env.N8N_POSTING_WEBHOOK_URL || "";
+// Helper to get userId from session (throws if not authenticated)
+function getUserId(req: Request): string {
+  const userId = req.session.userId;
+  if (!userId) {
+    throw new Error("Not authenticated");
+  }
+  return userId;
+}
 
+// Webhook URL from environment (with default for n8n posting workflow)
+const POSTING_WEBHOOK_URL = process.env.N8N_POSTING_WEBHOOK_URL || "https://liamfraz3.app.n8n.cloud/webhook/BPosting";
+
+// Configure multer for file uploads
+const UPLOADS_DIR = path.join(process.cwd(), "uploads");
+
+// Ensure uploads directory exists
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+const uploadStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: (_req, file, cb) => {
+    // Generate unique filename: uuid-originalname
+    const uniqueId = crypto.randomUUID();
+    const ext = path.extname(file.originalname).toLowerCase();
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_");
+    cb(null, `${uniqueId}-${safeName}`);
+  },
+});
+
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+const upload = multer({
+  storage: uploadStorage,
+  limits: {
+    fileSize: MAX_FILE_SIZE,
+  },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid file type: ${file.mimetype}. Allowed: jpg, jpeg, png, webp`));
+    }
+  },
+});
 
 export async function registerRoutes(
   httpServer: Server,
@@ -82,10 +139,14 @@ export async function registerRoutes(
     }
     res.json({ id: user.id, username: user.username });
   });
-  // Get all posts (single-user mode)
+  // Get all posts (scoped to current user)
   app.get("/api/posts", async (req, res) => {
     try {
-      const posts = await storage.getAllPosts();
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const posts = await storage.getAllPosts(userId);
       res.json(posts);
     } catch (error) {
       console.error("Error fetching posts:", error);
@@ -120,9 +181,13 @@ export async function registerRoutes(
   // Reorder posts - MUST be before /api/posts/:id to avoid matching "reorder" as an id
   app.put("/api/posts/reorder", async (req, res) => {
     try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const validatedData = reorderSchema.parse(req.body);
       await storage.reorderPosts(validatedData.updates);
-      await recalculateApprovedPostsDates();
+      await recalculateApprovedPostsDates(userId);
       res.json({ success: true });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -133,11 +198,15 @@ export async function registerRoutes(
     }
   });
 
-  // Get single post (single-user mode)
+  // Get single post (scoped to current user)
   app.get("/api/posts/:id", async (req, res) => {
     try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const post = await storage.getPost(req.params.id);
-      if (!post) {
+      if (!post || post.userId !== userId) {
         return res.status(404).json({ error: "Post not found" });
       }
       res.json(post);
@@ -147,19 +216,23 @@ export async function registerRoutes(
     }
   });
 
-  // Create post (single-user mode)
+  // Create post (scoped to current user)
   app.post("/api/posts", async (req, res) => {
     try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const validatedData = insertPostSchema.parse(req.body);
-      
+
       // Calculate order if not provided
       if (validatedData.order === undefined) {
-        const allPosts = await storage.getAllPosts();
+        const allPosts = await storage.getAllPosts(userId);
         const maxOrder = allPosts.length > 0 ? Math.max(...allPosts.map(p => p.order)) : 0;
         validatedData.order = maxOrder + 1;
       }
-      
-      const post = await storage.createPost(validatedData as any);
+
+      const post = await storage.createPost({ ...validatedData, userId } as any);
       res.status(201).json(post);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -170,14 +243,18 @@ export async function registerRoutes(
     }
   });
 
-  // Update post (content, images, scheduledDate) - single-user mode
+  // Update post (content, images, scheduledDate) - scoped to current user
   app.put("/api/posts/:id", async (req, res) => {
     try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const existingPost = await storage.getPost(req.params.id);
-      if (!existingPost) {
+      if (!existingPost || existingPost.userId !== userId) {
         return res.status(404).json({ error: "Post not found" });
       }
-      
+
       const validatedData = updatePostSchema.parse(req.body);
       const post = await storage.updatePost(req.params.id, validatedData);
       res.json(post);
@@ -190,26 +267,30 @@ export async function registerRoutes(
     }
   });
 
-  // Update post status (approve/reject) - single-user mode
+  // Update post status (approve/reject) - scoped to current user
   app.patch("/api/posts/:id/status", async (req, res) => {
     try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const existingPost = await storage.getPost(req.params.id);
-      if (!existingPost) {
+      if (!existingPost || existingPost.userId !== userId) {
         return res.status(404).json({ error: "Post not found" });
       }
-      
+
       const { status } = req.body;
       const validatedStatus = postStatusEnum.parse(status);
-      const post = await storage.updatePostStatus(req.params.id, validatedStatus);
+      const post = await storage.updatePostStatus(req.params.id, validatedStatus, userId);
       if (!post) {
         return res.status(404).json({ error: "Post not found" });
       }
-      
+
       // Recalculate all approved posts dates after status change
       if (validatedStatus === "approved" || validatedStatus === "rejected" || validatedStatus === "pending") {
-        await recalculateApprovedPostsDates();
+        await recalculateApprovedPostsDates(userId);
       }
-      
+
       // Fetch updated post with new scheduled date
       const updatedPost = await storage.getPost(req.params.id);
       res.json(updatedPost || post);
@@ -222,14 +303,55 @@ export async function registerRoutes(
     }
   });
 
-  // Delete post - single-user mode
-  app.delete("/api/posts/:id", async (req, res) => {
+  // Regenerate caption using AI - scoped to current user
+  app.post("/api/posts/:id/regenerate-caption", async (req, res) => {
     try {
-      const existingPost = await storage.getPost(req.params.id);
-      if (!existingPost) {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const post = await storage.getPost(req.params.id);
+      if (!post || post.userId !== userId) {
         return res.status(404).json({ error: "Post not found" });
       }
-      
+
+      if (post.status === "approved") {
+        return res.status(400).json({ error: "Cannot regenerate caption for approved posts. Send back to review first." });
+      }
+
+      if (!isOpenAIConfigured()) {
+        return res.status(503).json({ error: "AI caption generation unavailable. OPENAI_API_KEY not configured." });
+      }
+
+      const result = await regenerateCaption(post.content, post.images || undefined);
+
+      if (!result.success || !result.caption) {
+        return res.status(500).json({ error: result.error || "Failed to regenerate caption" });
+      }
+
+      // Update the post with the new caption
+      const updatedPost = await storage.updatePost(post.id, { content: result.caption });
+
+      res.json({ success: true, caption: result.caption, post: updatedPost });
+    } catch (error) {
+      console.error("Error regenerating caption:", error);
+      res.status(500).json({ error: "Failed to regenerate caption" });
+    }
+  });
+
+  // Delete post - scoped to current user
+  app.delete("/api/posts/:id", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const existingPost = await storage.getPost(req.params.id);
+      if (!existingPost || existingPost.userId !== userId) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
       const deleted = await storage.deletePost(req.params.id);
       if (!deleted) {
         return res.status(404).json({ error: "Post not found" });
@@ -241,12 +363,53 @@ export async function registerRoutes(
     }
   });
 
-  // Seed initial data if database is empty
+  // Seed initial data if database is empty AND create demo/jackfoley users
   app.post("/api/seed", async (_req, res) => {
     try {
+      // Always ensure jackfoley user exists (password: ADP)
+      let jackfoleyUser = await storage.getUserByUsername("jackfoley");
+      if (!jackfoleyUser) {
+        const hashedPassword = await hashPassword("ADP");
+        jackfoleyUser = await storage.createUser({ username: "jackfoley", password: hashedPassword });
+        console.log("Created jackfoley user:", jackfoleyUser.id);
+      } else {
+        // Reset password to 'ADP' for existing user
+        const hashedPassword = await hashPassword("ADP");
+        await storage.updateUserPassword(jackfoleyUser.id, hashedPassword);
+        console.log("Reset jackfoley password:", jackfoleyUser.id);
+      }
+
+      // Always ensure demo user exists
+      let demoUser = await storage.getUserByUsername("demo");
+      if (!demoUser) {
+        const hashedPassword = await hashPassword("demo");
+        demoUser = await storage.createUser({ username: "demo", password: hashedPassword });
+        console.log("Created demo user:", demoUser.id);
+      }
+
+      // Migrate any posts without userId to jackfoley (existing data migration)
+      const allPosts = await storage.getAllPosts();
+      const unownedPosts = allPosts.filter(p => !p.userId);
+      if (unownedPosts.length > 0) {
+        for (const post of unownedPosts) {
+          await storage.updatePost(post.id, { userId: jackfoleyUser.id } as any);
+        }
+        console.log(`Migrated ${unownedPosts.length} unowned posts to jackfoley`);
+      }
+
+      // Migrate any photos without userId to jackfoley (existing data migration)
+      const allPhotos = await storage.getAllTaggedPhotos();
+      const unownedPhotos = allPhotos.filter(p => !p.userId);
+      if (unownedPhotos.length > 0) {
+        for (const photo of unownedPhotos) {
+          await storage.updateTaggedPhoto(photo.id, { userId: jackfoleyUser.id } as any);
+        }
+        console.log(`Migrated ${unownedPhotos.length} unowned photos to jackfoley`);
+      }
+
       const existingPosts = await storage.getAllPosts();
       if (existingPosts.length > 0) {
-        return res.json({ message: "Database already has data", count: existingPosts.length });
+        return res.json({ message: "Database already has data", count: existingPosts.length, demoUserCreated: !!demoUser });
       }
 
       // Generate future dates relative to today
@@ -333,17 +496,170 @@ export async function registerRoutes(
       ];
 
       for (const post of seedPosts) {
-        await storage.createPost(post);
+        await storage.createPost({ ...post, userId: demoUser.id });
       }
 
-      res.json({ message: "Database seeded successfully", count: seedPosts.length });
+      res.json({ message: "Database seeded successfully", count: seedPosts.length, demoUserId: demoUser.id });
     } catch (error) {
       console.error("Error seeding database:", error);
       res.status(500).json({ error: "Failed to seed database" });
     }
   });
 
-  // Trigger n8n webhook to generate posts
+  // AI-powered post generation (no webhooks, all server-side)
+  app.post("/api/generate-posts", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { topics, maxPhotos = 10 } = req.body;
+
+      if (!topics || !Array.isArray(topics) || topics.length === 0) {
+        return res.status(400).json({ error: "topics array is required" });
+      }
+
+      if (!isPostGenerationAvailable()) {
+        return res.status(503).json({
+          error: "Post generation unavailable. OPENAI_API_KEY not configured."
+        });
+      }
+
+      // Fetch all available tagged photos (shared library)
+      const allPhotos = await storage.getAllTaggedPhotos();
+
+      if (allPhotos.length === 0) {
+        return res.status(400).json({
+          error: "No photos in library. Upload photos first."
+        });
+      }
+
+      // Convert to PhotoForAI format
+      const photosForAI: PhotoForAI[] = allPhotos.map((photo) => ({
+        id: photo.id,
+        tags: photo.tags?.join(", ") || "",
+        description: photo.description || photo.originalFilename || undefined,
+      }));
+
+      console.log(`[Generate Posts] Starting generation for ${topics.length} topics with ${photosForAI.length} available photos`);
+
+      const results: Array<{
+        topic: string;
+        success: boolean;
+        postId?: string;
+        photoIds?: string[];
+        caption?: string;
+        error?: string;
+      }> = [];
+
+      // Process topics with capped concurrency (2 at a time)
+      const CONCURRENCY = 2;
+      const queue = [...topics];
+      const inProgress: Promise<void>[] = [];
+
+      const processTopic = async (topic: string) => {
+        const trimmedTopic = topic.trim();
+        if (!trimmedTopic) {
+          results.push({ topic, success: false, error: "Empty topic" });
+          return;
+        }
+
+        try {
+          // Generate post (curator + caption)
+          const genResult = await generatePost(trimmedTopic, photosForAI);
+
+          if (!genResult.success) {
+            results.push({
+              topic: trimmedTopic,
+              success: false,
+              error: genResult.error,
+            });
+            return;
+          }
+
+          // Map photo IDs to photo URLs for the post
+          const photoIdSet = new Set(genResult.photoIds);
+          const selectedPhotos = allPhotos.filter((p) => photoIdSet.has(p.id));
+          const imageUrls = selectedPhotos.map((p) => p.photoUrl);
+
+          // Calculate order - new posts go to the top
+          const allPosts = await storage.getAllPosts(userId);
+          const pendingPosts = allPosts.filter((p) => p.status === "pending");
+
+          // Shift existing pending posts down
+          for (const pendingPost of pendingPosts) {
+            await storage.updatePost(pendingPost.id, { order: pendingPost.order + 1 });
+          }
+
+          // Calculate scheduled date (tomorrow at 5:00 PM)
+          const scheduledDate = new Date();
+          scheduledDate.setDate(scheduledDate.getDate() + 1);
+          scheduledDate.setHours(17, 0, 0, 0);
+
+          // Create the post (with userId)
+          const post = await storage.createPost({
+            content: genResult.caption,
+            status: "pending",
+            images: imageUrls.length > 0 ? imageUrls : null,
+            order: 0,
+            scheduledDate,
+            userId,
+          });
+
+          console.log(`[Generate Posts] Created post ${post.id} for topic: "${trimmedTopic}"`);
+
+          results.push({
+            topic: trimmedTopic,
+            success: true,
+            postId: post.id,
+            photoIds: genResult.photoIds,
+            caption: genResult.caption,
+          });
+        } catch (error) {
+          console.error(`[Generate Posts] Error for topic "${trimmedTopic}":`, error);
+          results.push({
+            topic: trimmedTopic,
+            success: false,
+            error: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
+      };
+
+      // Process with concurrency limit
+      while (queue.length > 0 || inProgress.length > 0) {
+        while (queue.length > 0 && inProgress.length < CONCURRENCY) {
+          const topic = queue.shift()!;
+          const promise = processTopic(topic).finally(() => {
+            const index = inProgress.indexOf(promise);
+            if (index > -1) inProgress.splice(index, 1);
+          });
+          inProgress.push(promise);
+        }
+        if (inProgress.length > 0) {
+          await Promise.race(inProgress);
+        }
+      }
+
+      const successCount = results.filter((r) => r.success).length;
+      const failCount = results.filter((r) => !r.success).length;
+
+      console.log(`[Generate Posts] Complete: ${successCount} succeeded, ${failCount} failed`);
+
+      res.json({
+        success: failCount === 0,
+        message: `${successCount} post(s) generated${failCount > 0 ? `, ${failCount} failed` : ""}`,
+        results,
+      });
+    } catch (error) {
+      console.error("[Generate Posts] Error:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to generate posts",
+      });
+    }
+  });
+
+  // Legacy: Trigger n8n webhook to generate posts (kept for backward compatibility)
   app.post("/api/trigger-generate", async (req, res) => {
     try {
       const { topics } = req.body;
@@ -374,9 +690,10 @@ export async function registerRoutes(
   app.post("/api/webhook/posts", async (req, res) => {
     try {
       console.log("Webhook received:", JSON.stringify(req.body, null, 2));
-      
+
       let postCaption = "";
       let postStatus = "";
+      let postUsername = "";
       const images: string[] = [];
       
       // Helper function to extract URL from =IMAGE("url") format
@@ -413,10 +730,10 @@ export async function registerRoutes(
       }
       
       if (dataArray && dataArray.length >= 2) {
-        // First pass: collect all imageUrl values and extract caption/status
+        // First pass: collect all imageUrl values and extract caption/status/username
         for (const item of dataArray) {
           const unwrapped = unwrapN8nData(item);
-          
+
           // Extract output/caption
           if (unwrapped.output && typeof unwrapped.output === 'string' && !postCaption) {
             postCaption = unwrapped.output;
@@ -424,12 +741,17 @@ export async function registerRoutes(
           if ((unwrapped.caption || unwrapped.Caption) && !postCaption) {
             postCaption = unwrapped.caption || unwrapped.Caption;
           }
-          
+
           // Extract status
           if ((unwrapped.status || unwrapped.Status) && !postStatus) {
             postStatus = unwrapped.status || unwrapped.Status;
           }
-          
+
+          // Extract username
+          if ((unwrapped.username || unwrapped.Username) && !postUsername) {
+            postUsername = unwrapped.username || unwrapped.Username;
+          }
+
           // Collect individual imageUrl values (prioritize these)
           if (unwrapped.imageUrl && typeof unwrapped.imageUrl === 'string') {
             if (!images.includes(unwrapped.imageUrl)) {
@@ -481,10 +803,13 @@ export async function registerRoutes(
           }
         }
         
-        const { status, caption, Status, Caption } = data;
+        const { status, caption, Status, Caption, username, Username } = data;
         postStatus = status || Status || postStatus || "";
         if (!postCaption) {
           postCaption = caption || Caption || "";
+        }
+        if (!postUsername) {
+          postUsername = username || Username || "";
         }
         
         // Collect all images from Image 1 through Image 10 (legacy format with space)
@@ -538,20 +863,32 @@ export async function registerRoutes(
         }
       }
       
-      // Get all pending posts and shift their order to make room at the top
-      const allPosts = await storage.getAllPosts();
+      // Look up user by username if provided
+      let userId: string | null = null;
+      if (postUsername) {
+        const user = await storage.getUserByUsername(postUsername);
+        if (user) {
+          userId = user.id;
+          console.log(`Webhook post will be assigned to user: ${postUsername} (${userId})`);
+        } else {
+          console.log(`Warning: Username '${postUsername}' not found, post will not be assigned to any user`);
+        }
+      }
+
+      // Get all pending posts (scoped to user if available) and shift their order
+      const allPosts = await storage.getAllPosts(userId || undefined);
       const pendingPosts = allPosts.filter(p => p.status === "pending");
-      
+
       // Shift all existing pending posts down by 1
       for (const pendingPost of pendingPosts) {
         await storage.updatePost(pendingPost.id, { order: pendingPost.order + 1 });
       }
-      
+
       // Calculate scheduled date (tomorrow at 5:00 PM)
       const scheduledDate = new Date();
       scheduledDate.setDate(scheduledDate.getDate() + 1);
       scheduledDate.setHours(17, 0, 0, 0);
-      
+
       // Create the post at the top (order = 0)
       const post = await storage.createPost({
         content: postCaption,
@@ -559,14 +896,134 @@ export async function registerRoutes(
         images: images.length > 0 ? images : null,
         order: 0,
         scheduledDate,
+        userId,
       });
-      
-      console.log("Post created via webhook:", post.id);
+
+      console.log("Post created via webhook:", post.id, userId ? `for user ${postUsername}` : "(no user)");
       res.status(201).json({ success: true, postId: post.id, message: "Post created successfully" });
     } catch (error) {
       console.error("Webhook error:", error);
       res.status(500).json({ error: "Failed to process webhook" });
     }
+  });
+
+  // Serve uploaded files statically
+  app.use("/uploads", (req, res, next) => {
+    const filePath = path.join(UPLOADS_DIR, req.path);
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).json({ error: "File not found" });
+    }
+  });
+
+  // Upload and tag photos endpoint (scoped to user)
+  app.post("/api/photos/upload-and-tag", upload.array("photos", 20), async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const files = req.files as Express.Multer.File[];
+
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "No files uploaded" });
+      }
+
+      console.log(`Processing ${files.length} uploaded files for user ${userId}...`);
+
+      const results: Array<{
+        success: boolean;
+        filename: string;
+        photo?: any;
+        error?: string;
+      }> = [];
+
+      // Process files (already uploaded by multer)
+      for (const file of files) {
+        try {
+          const filePath = file.path;
+          const photoUrl = `/uploads/${file.filename}`;
+
+          // Analyze image with OpenAI Vision
+          let tags: string[] = [];
+          if (isOpenAIConfigured()) {
+            console.log(`Analyzing image: ${file.originalname}`);
+            const taggingResult = await analyzeImageForTags(filePath);
+            if (taggingResult.success) {
+              tags = taggingResult.tags;
+              console.log(`Tags for ${file.originalname}:`, tags);
+            } else {
+              console.warn(`Failed to tag ${file.originalname}:`, taggingResult.error);
+            }
+          } else {
+            console.warn("OpenAI not configured, skipping tagging");
+          }
+
+          // Create tagged photo record in database (with userId)
+          const photo = await storage.createTaggedPhoto({
+            photoId: file.filename,
+            photoUrl: photoUrl,
+            description: file.originalname,
+            tags: tags.length > 0 ? tags : null,
+            originalFilename: file.originalname,
+            storagePath: filePath,
+            userId,
+          });
+
+          results.push({
+            success: true,
+            filename: file.originalname,
+            photo,
+          });
+        } catch (fileError) {
+          console.error(`Error processing file ${file.originalname}:`, fileError);
+          // Try to clean up the uploaded file
+          try {
+            if (fs.existsSync(file.path)) {
+              fs.unlinkSync(file.path);
+            }
+          } catch {}
+
+          results.push({
+            success: false,
+            filename: file.originalname,
+            error: fileError instanceof Error ? fileError.message : "Unknown error",
+          });
+        }
+      }
+
+      const successCount = results.filter((r) => r.success).length;
+      const failCount = results.filter((r) => !r.success).length;
+
+      console.log(`Upload complete: ${successCount} succeeded, ${failCount} failed`);
+
+      res.json({
+        success: failCount === 0,
+        message: `${successCount} photo(s) uploaded successfully${failCount > 0 ? `, ${failCount} failed` : ""}`,
+        results,
+      });
+    } catch (error) {
+      console.error("Upload error:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to upload photos"
+      });
+    }
+  });
+
+  // Error handler for multer errors
+  app.use((err: any, req: Request, res: Response, next: any) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB` });
+      }
+      return res.status(400).json({ error: err.message });
+    }
+    if (err.message && err.message.includes("Invalid file type")) {
+      return res.status(400).json({ error: err.message });
+    }
+    next(err);
   });
 
   // Webhook endpoint for n8n to create tagged photos
@@ -675,11 +1132,14 @@ export async function registerRoutes(
     }
   });
 
-  // Tagged Photos routes (shared library - single user mode)
+  // Tagged Photos routes (scoped by user)
   app.get("/api/tagged-photos", async (req, res) => {
     try {
-      // Single user mode: return ALL photos regardless of userId
-      const photos = await storage.getAllTaggedPhotos();
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const photos = await storage.getAllTaggedPhotos(userId);
       res.json(photos);
     } catch (error) {
       console.error("Error fetching tagged photos:", error);
@@ -724,12 +1184,16 @@ export async function registerRoutes(
   // Get photos that are currently in prepared posts (draft/pending/approved - not yet posted)
   app.get("/api/tagged-photos/in-posts", async (req, res) => {
     try {
-      // Get all posts that are not yet posted
-      const allPosts = await storage.getAllPosts();
-      const preparedPosts = allPosts.filter(p => 
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      // Get all posts that are not yet posted (scoped to user)
+      const allPosts = await storage.getAllPosts(userId);
+      const preparedPosts = allPosts.filter(p =>
         p.status === "draft" || p.status === "pending" || p.status === "approved"
       );
-      
+
       // Collect all image URLs from these posts
       const imageUrlsInPosts = new Set<string>();
       for (const post of preparedPosts) {
@@ -739,7 +1203,7 @@ export async function registerRoutes(
           }
         }
       }
-      
+
       res.json(Array.from(imageUrlsInPosts));
     } catch (error) {
       console.error("Error fetching photos in posts:", error);
@@ -894,10 +1358,14 @@ export async function registerRoutes(
     }
   });
 
-  // Recalculate dates endpoint (for initial setup) - single-user mode
+  // Recalculate dates endpoint (for initial setup) - scoped to user
   app.post("/api/posts/recalculate-dates", async (req, res) => {
     try {
-      await recalculateApprovedPostsDates();
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      await recalculateApprovedPostsDates(userId);
       res.json({ success: true, message: "Dates recalculated" });
     } catch (error) {
       console.error("Error recalculating dates:", error);
@@ -905,11 +1373,57 @@ export async function registerRoutes(
     }
   });
 
-  // Manual post endpoint - sends a post to webhook immediately (single-user mode)
+  // Debug endpoint to see webhook payload without sending
+  app.get("/api/posts/:id/debug-webhook", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const post = await storage.getPost(req.params.id);
+      if (!post || post.userId !== userId) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      // Convert local image paths to full URLs (same logic as post-now)
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
+      const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:5000";
+      const baseUrl = `${protocol}://${host}`;
+
+      const imageUrls = (post.images || []).map((img) => {
+        if (img.startsWith("/")) {
+          return `${baseUrl}${img}`;
+        }
+        return img;
+      });
+
+      res.json({
+        webhookUrl: POSTING_WEBHOOK_URL,
+        payload: {
+          postId: post.id,
+          caption: post.content,
+          images: imageUrls,
+          rawImages: post.images,
+          collaborators: post.collaborators || [],
+          scheduledDate: post.scheduledDate,
+          manualPost: true,
+        },
+      });
+    } catch (error) {
+      console.error("Error in debug-webhook:", error);
+      res.status(500).json({ error: "Failed to get debug info" });
+    }
+  });
+
+  // Manual post endpoint - sends a post to webhook immediately (scoped to user)
   app.post("/api/posts/:id/post-now", async (req, res) => {
     try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const post = await storage.getPost(req.params.id);
-      if (!post) {
+      if (!post || post.userId !== userId) {
         return res.status(404).json({ error: "Post not found" });
       }
 
@@ -918,8 +1432,31 @@ export async function registerRoutes(
       }
 
       console.log(`Manual posting: Sending post ${post.id} to webhook...`);
-      
-      // Send to n8n webhook
+
+      // Convert local image paths to full URLs
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
+      const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:5000";
+      const baseUrl = `${protocol}://${host}`;
+
+      const imageUrls = (post.images || []).map((img) => {
+        if (img.startsWith("/")) {
+          return `${baseUrl}${img}`;
+        }
+        return img;
+      });
+
+      console.log(`Webhook URL: ${POSTING_WEBHOOK_URL}`);
+      console.log(`Post data:`, JSON.stringify({
+        postId: post.id,
+        caption: post.content?.substring(0, 100) + "...",
+        imageCount: imageUrls.length,
+        images: imageUrls,
+      }));
+
+      // Send to n8n webhook with 2-minute timeout for Instagram uploads
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
+
       const response = await fetch(POSTING_WEBHOOK_URL, {
         method: "POST",
         headers: {
@@ -928,55 +1465,284 @@ export async function registerRoutes(
         body: JSON.stringify({
           postId: post.id,
           caption: post.content,
-          images: post.images || [],
+          images: imageUrls,
           collaborators: post.collaborators || [],
           scheduledDate: post.scheduledDate,
           manualPost: true,
         }),
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
+
       if (response.ok) {
-        // Wait for verification - REQUIRE explicit confirmation from n8n
-        let verified = false;
+        // HTTP 200 from n8n means the workflow accepted the post
+        // Accept empty response or explicit success confirmation
         let responseMessage = "";
         try {
-          const responseData = await response.json();
-          console.log(`Webhook response for post ${post.id}:`, JSON.stringify(responseData));
-          // Only accept explicit success confirmation - NOT just 200 OK
-          verified = responseData.success === true || 
-                    responseData.verified === true ||
-                    responseData.status === "success" ||
-                    responseData.status === "posted";
-          responseMessage = responseData.message || "";
+          const text = await response.text();
+          if (text) {
+            const responseData = JSON.parse(text);
+            console.log(`Webhook response for post ${post.id}:`, JSON.stringify(responseData));
+            responseMessage = responseData.message || "";
+          } else {
+            console.log(`Webhook returned 200 OK with empty body for post ${post.id}`);
+          }
         } catch (parseError) {
-          // No JSON response means no explicit confirmation
-          console.log(`No JSON response from webhook for post ${post.id}. Treating as unconfirmed.`);
-          verified = false;
+          console.log(`Non-JSON response from webhook for post ${post.id}, treating as success`);
         }
 
-        if (verified) {
-          // Move post to "posted" status only after n8n confirms
-          await storage.updatePostStatus(post.id, "posted");
-          // Mark any tagged photos used in this post as "posted"
-          if (post.images && post.images.length > 0) {
-            const markedCount = await storage.markPhotosAsPosted(post.images);
-            console.log(`Marked ${markedCount} tagged photos as posted for post ${post.id}`);
-          }
-          // Recalculate remaining approved posts dates
-          await recalculateApprovedPostsDates();
-          console.log(`Manual post ${post.id} verified by n8n and moved to 'posted' status`);
-          res.json({ success: true, message: responseMessage || "Post sent and confirmed" });
-        } else {
-          console.log(`Manual post ${post.id} sent but not confirmed by n8n. Response did not contain success confirmation.`);
-          res.status(400).json({ error: "Post sent but not confirmed. Configure your n8n workflow to use 'Respond to Webhook' node and return { success: true } after posting." });
+        // Move post to "posted" status since n8n returned 200 OK
+        await storage.updatePostStatus(post.id, "posted", userId);
+        // Mark any tagged photos used in this post as "posted"
+        if (post.images && post.images.length > 0) {
+          const markedCount = await storage.markPhotosAsPosted(post.images);
+          console.log(`Marked ${markedCount} tagged photos as posted for post ${post.id}`);
         }
+        // Recalculate remaining approved posts dates
+        await recalculateApprovedPostsDates(userId);
+        console.log(`Manual post ${post.id} sent to n8n and moved to 'posted' status`);
+        res.json({ success: true, message: responseMessage || "Post sent successfully" });
       } else {
         console.error(`Failed to manually send post ${post.id} to webhook:`, response.status);
         res.status(500).json({ error: `Webhook returned ${response.status}` });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error manually posting:", error);
-      res.status(500).json({ error: "Failed to send post" });
+      if (error.name === "AbortError") {
+        res.status(504).json({ error: "Webhook timed out after 2 minutes. Check if your n8n workflow is running." });
+      } else if (error.code === "ENOTFOUND" || error.code === "ECONNREFUSED") {
+        res.status(502).json({ error: "Could not connect to webhook URL. Check if n8n is running." });
+      } else {
+        res.status(500).json({ error: `Failed to send post: ${error.message || "Unknown error"}` });
+      }
+    }
+  });
+
+  // =============================================
+  // Instagram OAuth & Posting Endpoints
+  // =============================================
+
+  // Check if Instagram is configured
+  app.get("/api/instagram/status", async (req, res) => {
+    try {
+      const configured = isInstagramConfigured();
+      const userId = req.session.userId;
+
+      let connected = false;
+      let instagramUsername = null;
+
+      if (userId) {
+        const credentials = await storage.getInstagramCredentials(userId);
+        if (credentials) {
+          connected = true;
+          instagramUsername = credentials.instagramUsername;
+        }
+      }
+
+      res.json({
+        configured,
+        connected,
+        instagramUsername,
+      });
+    } catch (error) {
+      console.error("Error checking Instagram status:", error);
+      res.status(500).json({ error: "Failed to check Instagram status" });
+    }
+  });
+
+  // Get OAuth authorization URL
+  app.get("/api/instagram/auth-url", async (req, res) => {
+    try {
+      if (!isInstagramConfigured()) {
+        return res.status(503).json({
+          error: "Instagram integration not configured. Set INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET.",
+        });
+      }
+
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Must be logged in to connect Instagram" });
+      }
+
+      // Generate state for CSRF protection
+      const state = crypto.randomUUID();
+      req.session.instagramOAuthState = state;
+
+      // Build redirect URI
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.headers["x-forwarded-host"] || req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/instagram/callback`;
+
+      const authUrl = getInstagramAuthUrl(redirectUri, state);
+
+      res.json({ authUrl });
+    } catch (error) {
+      console.error("Error generating Instagram auth URL:", error);
+      res.status(500).json({ error: "Failed to generate auth URL" });
+    }
+  });
+
+  // OAuth callback handler
+  app.get("/api/instagram/callback", async (req, res) => {
+    try {
+      const { code, state, error: oauthError, error_description } = req.query;
+
+      if (oauthError) {
+        console.error("[Instagram] OAuth error:", oauthError, error_description);
+        return res.redirect(`/account?error=${encodeURIComponent(String(error_description || oauthError))}`);
+      }
+
+      if (!code || typeof code !== "string") {
+        return res.redirect("/account?error=No+authorization+code+received");
+      }
+
+      // Verify state
+      if (state !== req.session.instagramOAuthState) {
+        console.error("[Instagram] State mismatch:", state, req.session.instagramOAuthState);
+        return res.redirect("/account?error=Invalid+state+parameter");
+      }
+
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.redirect("/login?error=Session+expired");
+      }
+
+      // Build redirect URI (must match the one used to generate auth URL)
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.headers["x-forwarded-host"] || req.headers.host;
+      const redirectUri = `${protocol}://${host}/api/instagram/callback`;
+
+      // Exchange code for token
+      const authResult = await exchangeCodeForToken(code, redirectUri);
+
+      if (!authResult.success) {
+        return res.redirect(`/account?error=${encodeURIComponent(authResult.error || "Authentication failed")}`);
+      }
+
+      // Save credentials to database
+      const expiresAt = authResult.expiresIn
+        ? new Date(Date.now() + authResult.expiresIn * 1000)
+        : null;
+
+      await storage.saveInstagramCredentials({
+        userId,
+        instagramUserId: authResult.instagramUserId!,
+        instagramUsername: authResult.instagramUsername || null,
+        accessToken: authResult.accessToken!,
+        tokenExpiresAt: expiresAt,
+      });
+
+      console.log(`[Instagram] User ${userId} connected Instagram account @${authResult.instagramUsername}`);
+
+      // Clear OAuth state
+      delete req.session.instagramOAuthState;
+
+      res.redirect("/account?success=Instagram+connected+successfully");
+    } catch (error) {
+      console.error("Error in Instagram callback:", error);
+      res.redirect("/account?error=Connection+failed");
+    }
+  });
+
+  // Disconnect Instagram
+  app.post("/api/instagram/disconnect", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Must be logged in" });
+      }
+
+      const deleted = await storage.deleteInstagramCredentials(userId);
+
+      if (deleted) {
+        console.log(`[Instagram] User ${userId} disconnected Instagram account`);
+        res.json({ success: true, message: "Instagram disconnected" });
+      } else {
+        res.json({ success: true, message: "No Instagram account was connected" });
+      }
+    } catch (error) {
+      console.error("Error disconnecting Instagram:", error);
+      res.status(500).json({ error: "Failed to disconnect Instagram" });
+    }
+  });
+
+  // Publish a post to Instagram
+  app.post("/api/posts/:id/publish-instagram", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Must be logged in" });
+      }
+
+      // Get Instagram credentials
+      const credentials = await storage.getInstagramCredentials(userId);
+      if (!credentials) {
+        return res.status(400).json({
+          error: "No Instagram account connected. Go to Account settings to connect.",
+        });
+      }
+
+      // Check if token is expired
+      if (credentials.tokenExpiresAt && new Date() > credentials.tokenExpiresAt) {
+        return res.status(401).json({
+          error: "Instagram token has expired. Please reconnect your account.",
+        });
+      }
+
+      // Get the post (verify ownership)
+      const post = await storage.getPost(req.params.id);
+      if (!post || post.userId !== userId) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      if (!post.images || post.images.length === 0) {
+        return res.status(400).json({ error: "Post must have at least one image" });
+      }
+
+      // Make sure image URLs are publicly accessible
+      // For local uploads, we need to serve them via full URL
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.headers["x-forwarded-host"] || req.headers.host;
+      const baseUrl = `${protocol}://${host}`;
+
+      const imageUrls = post.images.map((img) => {
+        if (img.startsWith("/")) {
+          return `${baseUrl}${img}`;
+        }
+        return img;
+      });
+
+      // Post to Instagram
+      const result = await postToInstagram(
+        credentials.accessToken,
+        credentials.instagramUserId,
+        imageUrls,
+        post.content
+      );
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      // Update post status to "posted"
+      await storage.updatePostStatus(post.id, "posted");
+
+      // Mark photos as posted
+      if (post.images && post.images.length > 0) {
+        await storage.markPhotosAsPosted(post.images);
+      }
+
+      console.log(`[Instagram] Post ${post.id} published successfully: ${result.mediaId}`);
+
+      res.json({
+        success: true,
+        message: "Post published to Instagram",
+        mediaId: result.mediaId,
+      });
+    } catch (error) {
+      console.error("Error publishing to Instagram:", error);
+      res.status(500).json({ error: "Failed to publish to Instagram" });
     }
   });
 

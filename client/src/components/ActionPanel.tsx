@@ -31,7 +31,7 @@ export default function ActionPanel({
   const isPosted = status === "posted";
 
   return (
-    <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-4 border-t bg-background px-6 py-4">
+    <div className="sticky bottom-0 z-50 flex flex-wrap items-center justify-between gap-4 border-t bg-background px-6 py-4">
       <Button
         variant="ghost"
         onClick={onBack}

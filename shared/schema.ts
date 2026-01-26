@@ -91,6 +91,10 @@ export const taggedPhotos = pgTable("tagged_photos", {
   tags: text("tags").array(),
   status: text("status").notNull().default("available"),
   postedAt: timestamp("posted_at"),
+  // New fields for local file uploads
+  originalFilename: text("original_filename"),
+  storagePath: text("storage_path"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
 export const insertTaggedPhotoSchema = createInsertSchema(taggedPhotos).omit({
@@ -114,3 +118,18 @@ export const postingSettings = pgTable("posting_settings", {
 });
 
 export type PostingSettings = typeof postingSettings.$inferSelect;
+
+// Instagram Credentials table (for multi-tenant OAuth)
+export const instagramCredentials = pgTable("instagram_credentials", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  instagramUserId: text("instagram_user_id").notNull(),
+  instagramUsername: text("instagram_username"),
+  accessToken: text("access_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  connectedAt: timestamp("connected_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export type InstagramCredentials = typeof instagramCredentials.$inferSelect;
+export type InsertInstagramCredentials = typeof instagramCredentials.$inferInsert;

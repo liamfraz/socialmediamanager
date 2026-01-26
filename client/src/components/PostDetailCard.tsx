@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   DndContext,
   closestCenter,
@@ -42,7 +43,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Calendar, Clock, Plus, X, Search, Check, Users } from "lucide-react";
+import { Calendar, Clock, Plus, X, Search, Check, Users, Sparkles, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { SiInstagram } from "react-icons/si";
 import StatusBadge, { type PostStatus } from "./StatusBadge";
 import ImageCarousel from "./ImageCarousel";
@@ -157,6 +159,7 @@ export default function PostDetailCard({
   onCollaboratorsChange,
   onScheduledDateChange,
 }: PostDetailCardProps) {
+  const { toast } = useToast();
   const [editedContent, setEditedContent] = useState(content);
   const [currentImages, setCurrentImages] = useState<string[]>(images);
   const [currentCollaborators, setCurrentCollaborators] = useState<string[]>(collaborators);
@@ -166,7 +169,40 @@ export default function PostDetailCard({
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
-  
+  const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
+
+  // Mutation for regenerating caption
+  const regenerateMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/posts/${id}/regenerate-caption`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to regenerate caption");
+      }
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.caption) {
+        setEditedContent(data.caption);
+        onContentChange?.(data.caption);
+        toast({
+          title: "Caption regenerated",
+          description: "Your caption has been rewritten by AI.",
+        });
+      }
+      setRegenerateDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      setRegenerateDialogOpen(false);
+    },
+  });
+
   // Initialize scheduled date once - use prop or default to tomorrow at 5pm
   const [scheduledDate, setScheduledDate] = useState<Date>(() => {
     if (propScheduledDate) {
@@ -332,13 +368,14 @@ export default function PostDetailCard({
           <StatusBadge status={status} />
         </div>
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <Popover open={datePickerOpen} onOpenChange={status !== "approved" ? setDatePickerOpen : undefined}>
             <PopoverTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="flex items-center gap-1.5 h-auto py-1 px-2"
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`flex items-center gap-1.5 h-auto py-1 px-2 ${status === "approved" ? "cursor-default" : ""}`}
                 data-testid="button-edit-date"
+                disabled={status === "approved"}
               >
                 <Calendar className="h-4 w-4" />
                 <span>{format(scheduledDate, "MMM d, yyyy")}</span>
@@ -354,13 +391,14 @@ export default function PostDetailCard({
               />
             </PopoverContent>
           </Popover>
-          <Popover open={timePickerOpen} onOpenChange={setTimePickerOpen}>
+          <Popover open={timePickerOpen} onOpenChange={status !== "approved" ? setTimePickerOpen : undefined}>
             <PopoverTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="flex items-center gap-1.5 h-auto py-1 px-2"
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`flex items-center gap-1.5 h-auto py-1 px-2 ${status === "approved" ? "cursor-default" : ""}`}
                 data-testid="button-edit-time"
+                disabled={status === "approved"}
               >
                 <Clock className="h-4 w-4" />
                 <span>{format(scheduledDate, "h:mm a")}</span>
@@ -418,21 +456,23 @@ export default function PostDetailCard({
 
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAddPhoto}
-              data-testid="button-add-photo"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Photo
-            </Button>
+            {status !== "approved" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddPhoto}
+                data-testid="button-add-photo"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Photo
+              </Button>
+            )}
             <span className="text-xs text-muted-foreground">
               {currentImages.length} photo{currentImages.length !== 1 ? "s" : ""} attached
             </span>
           </div>
 
-          {currentImages.length > 0 && (
+          {currentImages.length > 0 && status !== "approved" && (
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -460,11 +500,34 @@ export default function PostDetailCard({
           <Textarea
             value={editedContent}
             onChange={(e) => handleContentChange(e.target.value)}
-            className="min-h-32 resize-none text-base"
+            className={`min-h-32 resize-none text-base ${status === "approved" ? "bg-muted cursor-not-allowed" : ""}`}
             placeholder="Enter your post content..."
             data-testid="textarea-post-content"
+            disabled={status === "approved" || regenerateMutation.isPending}
           />
-          <div className="flex justify-end">
+          {status === "approved" && (
+            <p className="text-xs text-muted-foreground">
+              Caption is locked. Send back to review to make changes.
+            </p>
+          )}
+          <div className="flex items-center justify-between">
+            {status !== "approved" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setRegenerateDialogOpen(true)}
+                disabled={regenerateMutation.isPending}
+                data-testid="button-regenerate-caption"
+              >
+                {regenerateMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-4 w-4" />
+                )}
+                {regenerateMutation.isPending ? "Regenerating..." : "Regenerate Caption"}
+              </Button>
+            )}
+            {status === "approved" && <div />}
             <span
               className={`text-xs ${
                 isOverLimit
@@ -485,30 +548,32 @@ export default function PostDetailCard({
             <Users className="h-4 w-4" />
             <span>Invite Collaborators</span>
           </div>
-          <div className="flex gap-2">
-            <Input
-              placeholder="@username"
-              value={collaboratorInput}
-              onChange={(e) => setCollaboratorInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleAddCollaborator();
-                }
-              }}
-              className="flex-1"
-              data-testid="input-collaborator"
-            />
-            <Button
-              variant="outline"
-              onClick={handleAddCollaborator}
-              disabled={!collaboratorInput.trim()}
-              data-testid="button-add-collaborator"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add
-            </Button>
-          </div>
+          {status !== "approved" && (
+            <div className="flex gap-2">
+              <Input
+                placeholder="@username"
+                value={collaboratorInput}
+                onChange={(e) => setCollaboratorInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddCollaborator();
+                  }
+                }}
+                className="flex-1"
+                data-testid="input-collaborator"
+              />
+              <Button
+                variant="outline"
+                onClick={handleAddCollaborator}
+                disabled={!collaboratorInput.trim()}
+                data-testid="button-add-collaborator"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add
+              </Button>
+            </div>
+          )}
           {currentCollaborators.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {currentCollaborators.map((username) => (
@@ -518,18 +583,23 @@ export default function PostDetailCard({
                   data-testid={`collaborator-${username}`}
                 >
                   <span>@{username}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-4 w-4"
-                    onClick={() => handleRemoveCollaborator(username)}
-                    data-testid={`button-remove-collaborator-${username}`}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
+                  {status !== "approved" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-4 w-4"
+                      onClick={() => handleRemoveCollaborator(username)}
+                      data-testid={`button-remove-collaborator-${username}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
+          )}
+          {currentCollaborators.length === 0 && status === "approved" && (
+            <p className="text-xs text-muted-foreground">No collaborators added</p>
           )}
         </div>
       </CardContent>
@@ -597,6 +667,43 @@ export default function PostDetailCard({
               data-testid="button-confirm-add-photos"
             >
               Add {selectedPhotos.size} Photo{selectedPhotos.size !== 1 ? "s" : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={regenerateDialogOpen} onOpenChange={setRegenerateDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Regenerate Caption</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to regenerate the caption? AI will rewrite your current caption with a fresh version. This action cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRegenerateDialogOpen(false)}
+              disabled={regenerateMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => regenerateMutation.mutate()}
+              disabled={regenerateMutation.isPending}
+              data-testid="button-confirm-regenerate"
+            >
+              {regenerateMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Regenerating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Regenerate
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

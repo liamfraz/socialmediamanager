@@ -1,4 +1,4 @@
-import { users, posts, taggedPhotos, postingSettings, type User, type InsertUser, type Post, type InsertPost, type TaggedPhoto, type InsertTaggedPhoto, type PostingSettings } from "@shared/schema";
+import { users, posts, taggedPhotos, postingSettings, instagramCredentials, type User, type InsertUser, type Post, type InsertPost, type TaggedPhoto, type InsertTaggedPhoto, type PostingSettings, type InstagramCredentials, type InsertInstagramCredentials } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, and, max, desc } from "drizzle-orm";
 
@@ -6,6 +6,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUserPassword(id: string, hashedPassword: string): Promise<User | undefined>;
   
   // Post operations - userId scoped
   getAllPosts(userId?: string): Promise<Post[]>;
@@ -34,6 +35,11 @@ export interface IStorage {
   
   // Posts by status with scheduled date filtering
   getDuePosts(): Promise<Post[]>;
+
+  // Instagram Credentials operations
+  getInstagramCredentials(userId: string): Promise<InstagramCredentials | undefined>;
+  saveInstagramCredentials(credentials: InsertInstagramCredentials): Promise<InstagramCredentials>;
+  deleteInstagramCredentials(userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -50,6 +56,11 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+
+  async updateUserPassword(id: string, hashedPassword: string): Promise<User | undefined> {
+    const [user] = await db.update(users).set({ password: hashedPassword }).where(eq(users.id, id)).returning();
+    return user || undefined;
   }
 
   async getAllPosts(userId?: string): Promise<Post[]> {
@@ -106,9 +117,12 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  // Tagged Photos operations - shared library (single user mode)
-  async getAllTaggedPhotos(): Promise<TaggedPhoto[]> {
-    // Single user mode: return ALL photos
+  // Tagged Photos operations - scoped by user
+  async getAllTaggedPhotos(userId?: string): Promise<TaggedPhoto[]> {
+    if (userId) {
+      return db.select().from(taggedPhotos).where(eq(taggedPhotos.userId, userId));
+    }
+    // Return all if no userId (for migrations/admin)
     return db.select().from(taggedPhotos);
   }
 
@@ -217,8 +231,28 @@ export class DatabaseStorage implements IStorage {
     const allPosts = await db.select().from(posts)
       .where(eq(posts.status, "approved"))
       .orderBy(asc(posts.scheduledDate));
-    
+
     return allPosts.filter(post => new Date(post.scheduledDate) <= now);
+  }
+
+  // Instagram Credentials operations
+  async getInstagramCredentials(userId: string): Promise<InstagramCredentials | undefined> {
+    const [credentials] = await db.select().from(instagramCredentials).where(eq(instagramCredentials.userId, userId));
+    return credentials || undefined;
+  }
+
+  async saveInstagramCredentials(credentials: InsertInstagramCredentials): Promise<InstagramCredentials> {
+    // Delete existing credentials for this user first (one account per user)
+    await db.delete(instagramCredentials).where(eq(instagramCredentials.userId, credentials.userId));
+
+    // Insert new credentials
+    const [saved] = await db.insert(instagramCredentials).values(credentials).returning();
+    return saved;
+  }
+
+  async deleteInstagramCredentials(userId: string): Promise<boolean> {
+    const result = await db.delete(instagramCredentials).where(eq(instagramCredentials.userId, userId)).returning();
+    return result.length > 0;
   }
 }
 

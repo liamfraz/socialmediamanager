@@ -21,7 +21,7 @@ Preferred communication style: Simple, everyday language.
 - Post detail view (`/post/:id`) - Individual post editing and approval interface
 - Review Posts (`/review`) - Post review workflow with status tabs
 - Posted Posts (`/posted`) - Published posts with "Posted Photos" viewer
-- Tagged Photos (`/tagged-photos`) - Photo library from Google Drive
+- Tagged Photos (`/tagged-photos`) - Photo library with direct uploads and AI tagging
 
 **State Management**: TanStack Query (React Query) for server state management with optimistic updates and automatic cache invalidation. No global client state management library is used.
 
@@ -161,3 +161,34 @@ All components are copied into the project (not installed as npm package) and cu
 ### Database
 
 PostgreSQL database required, accessed via connection string in `DATABASE_URL` environment variable. The application expects the database to be provisioned before startup and will throw an error if the connection string is missing.
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `SESSION_SECRET` | Yes | Secret key for session encryption |
+| `OPENAI_API_KEY` | No | OpenAI API key for AI photo tagging (if not set, photos upload without tags) |
+| `PORT` | No | Server port (defaults to 5000) |
+| `N8N_POSTING_WEBHOOK_URL` | No | Webhook URL for n8n posting integration |
+
+### Photo Uploads
+
+Photos can be uploaded directly through the Tagged Photos page. Uploaded files are:
+- Stored locally in the `/uploads` directory
+- Automatically analyzed and tagged using OpenAI Vision API (gpt-4o model)
+- Accessible via `/uploads/{filename}` URL
+
+**Supported formats:** JPG, JPEG, PNG, WebP
+**Maximum file size:** 10MB per file
+**Concurrent uploads:** Up to 3 files processed simultaneously
+
+To run locally with photo tagging:
+```bash
+export OPENAI_API_KEY="your-api-key"
+export DATABASE_URL="postgresql://user@localhost:5432/dbname"
+export SESSION_SECRET="your-secret"
+npm run dev
+```
+
+On Replit, add `OPENAI_API_KEY` to your Secrets for AI tagging to work.

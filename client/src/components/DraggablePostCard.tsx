@@ -64,12 +64,17 @@ export default function DraggablePostCard({
   
   const [editDate, setEditDate] = useState(format(validDate, "yyyy-MM-dd"));
   const [editTime, setEditTime] = useState(format(validDate, "HH:mm"));
-  
+  const [dateError, setDateError] = useState<string | null>(null);
+
+  // Minimum date is today
+  const minDate = format(new Date(), "yyyy-MM-dd");
+
   // Update edit fields when popover opens
   useEffect(() => {
     if (timePopoverOpen) {
       setEditDate(format(validDate, "yyyy-MM-dd"));
       setEditTime(format(validDate, "HH:mm"));
+      setDateError(null);
     }
   }, [timePopoverOpen, validDate]);
   
@@ -98,6 +103,14 @@ export default function DraggablePostCard({
     const [year, month, day] = editDate.split("-").map(Number);
     const [hours, minutes] = editTime.split(":").map(Number);
     const newDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+
+    // Check if the selected date/time is in the past
+    if (newDate < new Date()) {
+      setDateError("Cannot schedule a post in the past");
+      return;
+    }
+
+    setDateError(null);
     onTimeChange?.(id, newDate);
     setTimePopoverOpen(false);
   };
@@ -146,7 +159,11 @@ export default function DraggablePostCard({
                   <Input
                     type="date"
                     value={editDate}
-                    onChange={(e) => setEditDate(e.target.value)}
+                    min={minDate}
+                    onChange={(e) => {
+                      setEditDate(e.target.value);
+                      setDateError(null);
+                    }}
                     className="w-full"
                     data-testid={`input-date-${id}`}
                   />
@@ -156,11 +173,17 @@ export default function DraggablePostCard({
                   <Input
                     type="time"
                     value={editTime}
-                    onChange={(e) => setEditTime(e.target.value)}
+                    onChange={(e) => {
+                      setEditTime(e.target.value);
+                      setDateError(null);
+                    }}
                     className="w-full"
                     data-testid={`input-time-${id}`}
                   />
                 </div>
+                {dateError && (
+                  <p className="text-xs text-red-500">{dateError}</p>
+                )}
               </div>
               <div className="flex justify-end gap-2">
                 <Button

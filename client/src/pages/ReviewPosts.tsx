@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Sparkles, Loader2, Pause, Play, CheckCircle, RefreshCw } from "lucide-react";
+import { Sparkles, Loader2, Pause, Play, CheckCircle, RefreshCw, AlertCircle, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Post, PostingSettings } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -27,6 +27,8 @@ export default function ReviewPosts() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [postTopics, setPostTopics] = useState<string[]>([""]);
+  const [generationStatus, setGenerationStatus] = useState<Record<number, "pending" | "generating" | "done" | "error">>({});
+  const [generationErrors, setGenerationErrors] = useState<Record<number, string>>({});
   const [newlyCreatedPosts, setNewlyCreatedPosts] = useState<Set<string>>(new Set());
   const knownPostIdsRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
@@ -90,29 +92,87 @@ export default function ReviewPosts() {
       return;
     }
 
-    setShowGenerateDialog(false);
+    // Initialize generation status for all topics
+    const initialStatus: Record<number, "pending" | "generating" | "done" | "error"> = {};
+    filledTopics.forEach((_, i) => {
+      initialStatus[i] = "generating";
+    });
+    setGenerationStatus(initialStatus);
+    setGenerationErrors({});
     setIsGenerating(true);
+
     try {
-      await apiRequest("POST", "/api/trigger-generate", { topics: filledTopics.map(t => t.trim()) });
-      
-      toast({
-        title: "Generation triggered",
-        description: `${filledTopics.length} post${filledTopics.length > 1 ? 's are' : ' is'} being generated. They will appear shortly.`,
+      const response = await apiRequest("POST", "/api/generate-posts", {
+        topics: filledTopics.map(t => t.trim())
       });
-      
-      // Refresh posts after a short delay to give n8n time to process
-      setTimeout(() => {
+      const data = await response.json();
+
+      // Update status based on results
+      const newStatus: Record<number, "pending" | "generating" | "done" | "error"> = {};
+      const newErrors: Record<number, string> = {};
+
+      if (data.results && Array.isArray(data.results)) {
+        data.results.forEach((result: any, index: number) => {
+          if (result.success) {
+            newStatus[index] = "done";
+          } else {
+            newStatus[index] = "error";
+            newErrors[index] = result.error || "Generation failed";
+          }
+        });
+      }
+
+      setGenerationStatus(newStatus);
+      setGenerationErrors(newErrors);
+
+      const successCount = data.results?.filter((r: any) => r.success).length || 0;
+      const failCount = data.results?.filter((r: any) => !r.success).length || 0;
+
+      if (successCount > 0) {
+        toast({
+          title: "Posts generated",
+          description: `${successCount} post${successCount > 1 ? 's' : ''} created successfully${failCount > 0 ? `, ${failCount} failed` : ''}.`,
+        });
         queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
-      }, 3000);
-    } catch (error) {
+      } else {
+        toast({
+          title: "Generation failed",
+          description: data.error || "No posts were generated. Check your photo library.",
+          variant: "destructive",
+        });
+      }
+
+      // Close dialog after a short delay to show completion status
+      setTimeout(() => {
+        setShowGenerateDialog(false);
+        setIsGenerating(false);
+        setPostTopics([""]);
+        setGenerationStatus({});
+        setGenerationErrors({});
+      }, failCount > 0 ? 3000 : 1500);
+
+    } catch (error: any) {
+      // Mark all as error
+      const errorStatus: Record<number, "pending" | "generating" | "done" | "error"> = {};
+      filledTopics.forEach((_, i) => {
+        errorStatus[i] = "error";
+      });
+      setGenerationStatus(errorStatus);
+
+      const errorMessage = error?.message || "Failed to generate posts. Please try again.";
       toast({
         title: "Error",
-        description: "Failed to trigger post generation. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
-    } finally {
-      setIsGenerating(false);
-      setPostTopics([""]);
+
+      setTimeout(() => {
+        setIsGenerating(false);
+        setShowGenerateDialog(false);
+        setPostTopics([""]);
+        setGenerationStatus({});
+        setGenerationErrors({});
+      }, 2000);
     }
   };
 
@@ -329,7 +389,7 @@ export default function ReviewPosts() {
       </div>
 
       <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Generate Posts</DialogTitle>
             <DialogDescription>
@@ -339,7 +399,7 @@ export default function ReviewPosts() {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <Label htmlFor="post-count" className="whitespace-nowrap">Number of posts</Label>
-              <Select value={String(postTopics.length)} onValueChange={handlePostCountChange}>
+              <Select value={String(postTopics.length)} onValueChange={handlePostCountChange} disabled={isGenerating}>
                 <SelectTrigger id="post-count" className="w-24" data-testid="select-post-count">
                   <SelectValue />
                 </SelectTrigger>
@@ -363,23 +423,53 @@ export default function ReviewPosts() {
                     onChange={(e) => handleTopicChange(index, e.target.value)}
                     placeholder="A bride holding flowers"
                     data-testid={`input-post-topic-${index}`}
+                    disabled={isGenerating}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && index === postTopics.length - 1) {
+                      if (e.key === "Enter" && index === postTopics.length - 1 && !isGenerating) {
                         handleGeneratePosts();
                       }
                     }}
                   />
+                  {/* Status indicator - always reserve space to prevent jitter */}
+                  <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+                    {generationStatus[index] === "generating" && (
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                    )}
+                    {generationStatus[index] === "done" && (
+                      <Check className="h-4 w-4 text-green-500" />
+                    )}
+                    {generationStatus[index] === "error" && (
+                      <AlertCircle className="h-4 w-4 text-red-500" title={generationErrors[index]} />
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowGenerateDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowGenerateDialog(false)}
+              disabled={isGenerating}
+            >
               Cancel
             </Button>
-            <Button onClick={handleGeneratePosts} data-testid="button-submit-generate">
-              <Sparkles className="mr-2 h-4 w-4" />
-              Generate
+            <Button
+              onClick={handleGeneratePosts}
+              disabled={isGenerating}
+              data-testid="button-submit-generate"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

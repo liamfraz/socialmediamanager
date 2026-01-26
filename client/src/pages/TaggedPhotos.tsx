@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit, RefreshCw, FileText } from "lucide-react";
+import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit, RefreshCw, FileText, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { TaggedPhoto } from "@shared/schema";
 import Breadcrumb from "@/components/Breadcrumb";
+import PhotoUploadModal from "@/components/PhotoUploadModal";
 
 const ITEMS_PER_PAGE = 50;
 
@@ -32,6 +33,7 @@ export default function TaggedPhotos() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState<TaggedPhoto | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -156,7 +158,12 @@ export default function TaggedPhotos() {
   };
 
   const handleAdd = () => {
-    window.open("https://drive.google.com/drive/folders/1aZJNdNDyhuUcRxi1Of6j3gijVbCQhtFj?usp=drive_link", "_blank");
+    setUploadModalOpen(true);
+  };
+
+  const handleUploadComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] });
+    toast({ title: "Photos uploaded", description: "Your photos have been uploaded and tagged." });
   };
 
   const handleEdit = (photo: TaggedPhoto) => {
@@ -328,7 +335,7 @@ export default function TaggedPhotos() {
               <RefreshCw className="h-4 w-4" />
             </Button>
             <Button onClick={handleAdd} data-testid="button-add-photo">
-              <Plus className="mr-2 h-4 w-4" />
+              <Upload className="mr-2 h-4 w-4" />
               Add Photo
             </Button>
           </div>
@@ -358,10 +365,10 @@ export default function TaggedPhotos() {
             <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground/50" />
             <h3 className="mt-4 text-lg font-medium">No photos yet</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Add photos from Google Drive to get started.
+              Upload photos to get started. They'll be automatically tagged using AI.
             </p>
             <Button className="mt-4" onClick={handleAdd}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Upload className="mr-2 h-4 w-4" />
               Add Your First Photo
             </Button>
           </div>
@@ -658,6 +665,12 @@ export default function TaggedPhotos() {
           )}
         </DialogContent>
       </Dialog>
+
+      <PhotoUploadModal
+        open={uploadModalOpen}
+        onOpenChange={setUploadModalOpen}
+        onUploadComplete={handleUploadComplete}
+      />
     </div>
   );
 }

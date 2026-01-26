@@ -286,10 +286,10 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Post not found" });
       }
 
-      // Delete photos from tagged photos library when moving to approved or posted
-      if ((validatedStatus === "approved" || validatedStatus === "posted") && post.images && post.images.length > 0) {
+      // Delete photos from tagged photos library only when post is actually posted
+      if (validatedStatus === "posted" && post.images && post.images.length > 0) {
         const deletedCount = await storage.deleteTaggedPhotosByUrls(post.images);
-        console.log(`Deleted ${deletedCount} photos from library for post ${req.params.id} (status: ${validatedStatus})`);
+        console.log(`Deleted ${deletedCount} photos from library for post ${req.params.id} (status: posted)`);
       }
 
       // Recalculate all approved posts dates after status change

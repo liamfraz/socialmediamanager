@@ -26,6 +26,7 @@ export interface IStorage {
   createTaggedPhoto(photo: InsertTaggedPhoto, userId?: string): Promise<TaggedPhoto>;
   updateTaggedPhoto(id: string, data: Partial<InsertTaggedPhoto>): Promise<TaggedPhoto | undefined>;
   deleteTaggedPhoto(id: string): Promise<boolean>;
+  deleteTaggedPhotosByUrls(photoUrls: string[]): Promise<number>;
   claimTaggedPhotos(photoIds: string[], userId: string): Promise<number>;
   markPhotosAsPosted(photoUrls: string[]): Promise<number>;
 
@@ -162,6 +163,22 @@ export class DatabaseStorage implements IStorage {
   async deleteTaggedPhoto(id: string): Promise<boolean> {
     const result = await db.delete(taggedPhotos).where(eq(taggedPhotos.id, id)).returning();
     return result.length > 0;
+  }
+
+  async deleteTaggedPhotosByUrls(photoUrls: string[]): Promise<number> {
+    if (photoUrls.length === 0) return 0;
+    const { inArray, or } = await import("drizzle-orm");
+    // Match on either photoUrl or photoId to handle both URL and ID formats
+    const result = await db
+      .delete(taggedPhotos)
+      .where(
+        or(
+          inArray(taggedPhotos.photoUrl, photoUrls),
+          inArray(taggedPhotos.photoId, photoUrls)
+        )
+      )
+      .returning();
+    return result.length;
   }
 
   async getUnassignedTaggedPhotos(): Promise<TaggedPhoto[]> {

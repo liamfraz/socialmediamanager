@@ -535,6 +535,7 @@ export async function registerRoutes(
 
       // Fetch tagged photos - filter by folder if specified
       let allPhotos = await storage.getAllTaggedPhotos();
+      const totalPhotosBeforeFilter = allPhotos.length;
       
       if (folderId) {
         if (folderId === "unfiled") {
@@ -546,23 +547,45 @@ export async function registerRoutes(
         }
       }
 
-      if (allPhotos.length === 0) {
-        const folderMessage = folderId 
-          ? (folderId === "unfiled" ? "No unfiled photos available." : "No photos in the selected folder.")
-          : "No photos in library. Upload photos first.";
-        return res.status(400).json({
-          error: folderMessage
-        });
+      // Get all posts that have photos in use (pending, approved, draft)
+      const allPosts = await storage.getAllPosts(userId);
+      const postsWithPhotosInUse = allPosts.filter(p => 
+        (p.status === "pending" || p.status === "approved" || p.status === "draft") && 
+        p.images && p.images.length > 0
+      );
+      
+      // Collect all photo URLs that are already in use
+      const photosInUse = new Set<string>();
+      for (const post of postsWithPhotosInUse) {
+        if (post.images) {
+          for (const url of post.images) {
+            photosInUse.add(url);
+          }
+        }
+      }
+      
+      // Filter out photos that are already in pending/approved posts
+      const availablePhotos = allPhotos.filter(p => !photosInUse.has(p.photoUrl));
+      const photosFilteredOut = allPhotos.length - availablePhotos.length;
+
+      if (availablePhotos.length === 0) {
+        let errorMessage = "No photos available.";
+        if (totalPhotosBeforeFilter === 0) {
+          errorMessage = "No photos in library. Upload photos first.";
+        } else if (folderId && allPhotos.length === 0) {
+          errorMessage = folderId === "unfiled" 
+            ? "No unfiled photos available." 
+            : "No photos in the selected folder.";
+        } else if (photosFilteredOut > 0) {
+          errorMessage = `All ${photosFilteredOut} matching photo${photosFilteredOut > 1 ? 's are' : ' is'} already used in pending or draft posts.`;
+        }
+        return res.status(400).json({ error: errorMessage });
       }
 
-      // Convert to PhotoForAI format
-      const photosForAI: PhotoForAI[] = allPhotos.map((photo) => ({
-        id: photo.id,
-        tags: photo.tags?.join(", ") || "",
-        description: photo.description || photo.originalFilename || undefined,
-      }));
+      // Track photos used during this generation session to avoid duplicates
+      const usedPhotoIds = new Set<string>();
 
-      console.log(`[Generate Posts] Starting generation for ${topics.length} topics with ${photosForAI.length} available photos`);
+      console.log(`[Generate Posts] Starting generation for ${topics.length} topics with ${availablePhotos.length} available photos (${photosFilteredOut} already in use)`);
 
       const results: Array<{
         topic: string;
@@ -573,10 +596,8 @@ export async function registerRoutes(
         error?: string;
       }> = [];
 
-      // Process topics with capped concurrency (2 at a time)
-      const CONCURRENCY = 2;
-      const queue = [...topics];
-      const inProgress: Promise<void>[] = [];
+      // Process topics sequentially to ensure different photos are used for each
+      // (parallel processing would cause race conditions with photo selection)
 
       const processTopic = async (topic: string) => {
         const trimmedTopic = topic.trim();
@@ -586,6 +607,25 @@ export async function registerRoutes(
         }
 
         try {
+          // Get photos that haven't been used in this generation session
+          const sessionAvailablePhotos = availablePhotos.filter(p => !usedPhotoIds.has(p.id));
+          
+          if (sessionAvailablePhotos.length === 0) {
+            results.push({
+              topic: trimmedTopic,
+              success: false,
+              error: "No more available photos. All photos are used in other posts being generated.",
+            });
+            return;
+          }
+
+          // Convert to PhotoForAI format for this specific generation
+          const photosForAI: PhotoForAI[] = sessionAvailablePhotos.map((photo) => ({
+            id: photo.id,
+            tags: photo.tags?.join(", ") || "",
+            description: photo.description || photo.originalFilename || undefined,
+          }));
+
           // Generate post (curator + caption)
           const genResult = await generatePost(trimmedTopic, photosForAI);
 
@@ -598,9 +638,14 @@ export async function registerRoutes(
             return;
           }
 
+          // Mark these photos as used in this session
+          for (const photoId of genResult.photoIds) {
+            usedPhotoIds.add(photoId);
+          }
+
           // Map photo IDs to photo URLs for the post
           const photoIdSet = new Set(genResult.photoIds);
-          const selectedPhotos = allPhotos.filter((p) => photoIdSet.has(p.id));
+          const selectedPhotos = availablePhotos.filter((p) => photoIdSet.has(p.id));
           const imageUrls = selectedPhotos.map((p) => p.photoUrl);
 
           // Calculate order - new posts go to the top
@@ -646,19 +691,9 @@ export async function registerRoutes(
         }
       };
 
-      // Process with concurrency limit
-      while (queue.length > 0 || inProgress.length > 0) {
-        while (queue.length > 0 && inProgress.length < CONCURRENCY) {
-          const topic = queue.shift()!;
-          const promise = processTopic(topic).finally(() => {
-            const index = inProgress.indexOf(promise);
-            if (index > -1) inProgress.splice(index, 1);
-          });
-          inProgress.push(promise);
-        }
-        if (inProgress.length > 0) {
-          await Promise.race(inProgress);
-        }
+      // Process topics one at a time to ensure unique photo selection
+      for (const topic of topics) {
+        await processTopic(topic);
       }
 
       const successCount = results.filter((r) => r.success).length;

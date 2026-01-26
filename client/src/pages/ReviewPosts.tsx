@@ -47,7 +47,7 @@ export default function ReviewPosts() {
 
   // Fetch folders for the dropdown
   const { data: folders = [] } = useQuery<PhotoFolder[]>({
-    queryKey: ["/api/folders"],
+    queryKey: ["/api/photo-folders"],
   });
 
   // Toggle pause mutation

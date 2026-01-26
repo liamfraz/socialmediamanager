@@ -15,6 +15,16 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -58,6 +68,7 @@ export default function TaggedPhotos() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState("");
+  const [deleteFolderConfirm, setDeleteFolderConfirm] = useState<{ id: string; name: string } | null>(null);
   
   const [formData, setFormData] = useState({
     photoId: "",
@@ -235,7 +246,8 @@ export default function TaggedPhotos() {
       if (currentFolderId) {
         setCurrentFolderId(null);
       }
-      toast({ title: "Folder deleted", description: "The folder has been deleted. Photos moved to unfiled." });
+      setDeleteFolderConfirm(null);
+      toast({ title: "Folder deleted", description: "The folder and all photos have been deleted." });
     },
   });
 
@@ -518,7 +530,7 @@ export default function TaggedPhotos() {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
-                          onClick={() => deleteFolderMutation.mutate(folder.id)}
+                          onClick={() => setDeleteFolderConfirm({ id: folder.id, name: folder.name })}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
                           Delete
@@ -905,6 +917,27 @@ export default function TaggedPhotos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteFolderConfirm} onOpenChange={(open) => !open && setDeleteFolderConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete folder?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure? All photos in the folder "{deleteFolderConfirm?.name}" will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-folder">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteFolderConfirm && deleteFolderMutation.mutate(deleteFolderConfirm.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-folder"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

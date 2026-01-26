@@ -305,8 +305,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deletePhotoFolder(id: string): Promise<boolean> {
-    // First, unassign all photos from this folder
-    await db.update(taggedPhotos).set({ folderId: null }).where(eq(taggedPhotos.folderId, id));
+    // First, delete all photos in this folder
+    await db.delete(taggedPhotos).where(eq(taggedPhotos.folderId, id));
     // Then delete the folder
     const result = await db.delete(photoFolders).where(eq(photoFolders.id, id)).returning();
     return result.length > 0;

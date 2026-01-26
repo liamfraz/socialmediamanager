@@ -639,6 +639,19 @@ export async function registerRoutes(
 
       // Process topics sequentially to ensure different photos are used for each
       // (parallel processing would cause race conditions with photo selection)
+      
+      // First, shift all existing pending posts down to make room for new posts
+      const existingPosts = await storage.getAllPosts(userId);
+      const existingPendingPosts = existingPosts.filter((p) => p.status === "pending");
+      const topicsToGenerate = topics.filter(t => t.trim()).length;
+      
+      // Shift existing pending posts down by the number of new posts
+      for (const pendingPost of existingPendingPosts) {
+        await storage.updatePost(pendingPost.id, { order: pendingPost.order + topicsToGenerate });
+      }
+      
+      // Track which order value to assign to each new post (0 for first, 1 for second, etc.)
+      let nextOrder = 0;
 
       const processTopic = async (topic: string) => {
         const trimmedTopic = topic.trim();
@@ -689,14 +702,9 @@ export async function registerRoutes(
           const selectedPhotos = availablePhotos.filter((p) => photoIdSet.has(p.id));
           const imageUrls = selectedPhotos.map((p) => p.photoUrl);
 
-          // Calculate order - new posts go to the top
-          const allPosts = await storage.getAllPosts(userId);
-          const pendingPosts = allPosts.filter((p) => p.status === "pending");
-
-          // Shift existing pending posts down
-          for (const pendingPost of pendingPosts) {
-            await storage.updatePost(pendingPost.id, { order: pendingPost.order + 1 });
-          }
+          // Get the order value for this post (first topic gets 0, second gets 1, etc.)
+          const orderForThisPost = nextOrder;
+          nextOrder++;
 
           // Calculate scheduled date (tomorrow at 5:00 PM)
           const scheduledDate = new Date();
@@ -708,7 +716,7 @@ export async function registerRoutes(
             content: genResult.caption,
             status: "pending",
             images: imageUrls.length > 0 ? imageUrls : null,
-            order: 0,
+            order: orderForThisPost,
             scheduledDate,
             userId,
           });

@@ -62,7 +62,6 @@ interface SortableImageProps {
 
 function SortableImage({ id, url, index, isSelected, onRemove, onClick }: SortableImageProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [wasDragged, setWasDragged] = useState(false);
   const {
     attributes,
     listeners,
@@ -79,25 +78,6 @@ function SortableImage({ id, url, index, isSelected, onRemove, onClick }: Sortab
     opacity: isDragging ? 0.8 : 1,
   };
 
-  // Track when drag starts
-  const handlePointerDown = () => {
-    setWasDragged(false);
-  };
-
-  // Detect if pointer moved (drag occurred)
-  const handlePointerMove = () => {
-    if (isDragging) {
-      setWasDragged(true);
-    }
-  };
-
-  // Only trigger click if no drag happened
-  const handleClick = () => {
-    if (!wasDragged) {
-      onClick(index);
-    }
-  };
-
   return (
     <div
       ref={setNodeRef}
@@ -105,8 +85,7 @@ function SortableImage({ id, url, index, isSelected, onRemove, onClick }: Sortab
       className="group relative cursor-grab active:cursor-grabbing"
       {...attributes}
       {...listeners}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
+      onClick={() => onClick(index)}
     >
       <img
         src={url}
@@ -114,7 +93,6 @@ function SortableImage({ id, url, index, isSelected, onRemove, onClick }: Sortab
         className={`h-12 w-12 rounded-md object-cover transition-all ${
           isSelected ? "ring-2 ring-primary ring-offset-2" : "hover:opacity-80"
         }`}
-        onClick={handleClick}
         data-testid={`button-thumbnail-${index}`}
       />
       {confirmDelete ? (
@@ -367,7 +345,11 @@ export default function PostDetailCard({
   };
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px movement before drag starts - allows clicks
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })

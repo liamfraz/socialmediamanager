@@ -932,7 +932,21 @@ export async function registerRoutes(
         return res.status(400).json({ error: "No files uploaded" });
       }
 
-      console.log(`Processing ${files.length} uploaded files for user ${userId}...`);
+      // Handle folder assignment - can provide folderId or folderName
+      let folderId: string | null = null;
+      const { folderId: providedFolderId, folderName } = req.body;
+
+      if (providedFolderId) {
+        // Use existing folder
+        folderId = providedFolderId;
+      } else if (folderName && typeof folderName === "string" && folderName.trim()) {
+        // Create new folder with the provided name
+        const folder = await storage.createPhotoFolder({ name: folderName.trim(), userId });
+        folderId = folder.id;
+        console.log(`Created new folder "${folderName}" with ID ${folderId}`);
+      }
+
+      console.log(`Processing ${files.length} uploaded files for user ${userId}${folderId ? ` into folder ${folderId}` : ""}...`);
 
       const results: Array<{
         success: boolean;
@@ -962,7 +976,7 @@ export async function registerRoutes(
             console.warn("OpenAI not configured, skipping tagging");
           }
 
-          // Create tagged photo record in database (with userId)
+          // Create tagged photo record in database (with userId and optional folderId)
           const photo = await storage.createTaggedPhoto({
             photoId: file.filename,
             photoUrl: photoUrl,
@@ -971,6 +985,7 @@ export async function registerRoutes(
             originalFilename: file.originalname,
             storagePath: filePath,
             userId,
+            folderId,
           });
 
           results.push({
@@ -1004,6 +1019,7 @@ export async function registerRoutes(
         success: failCount === 0,
         message: `${successCount} photo(s) uploaded successfully${failCount > 0 ? `, ${failCount} failed` : ""}`,
         results,
+        folderId,
       });
     } catch (error) {
       console.error("Upload error:", error);

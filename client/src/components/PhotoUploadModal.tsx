@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, X, Check, AlertCircle, Loader2, Image as ImageIcon } from "lucide-react";
+import { Upload, X, Check, AlertCircle, Loader2, Image as ImageIcon, Folder } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +27,8 @@ interface PhotoUploadModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUploadComplete: () => void;
+  defaultFolderName?: string;
+  folderId?: string;
 }
 
 const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -35,10 +39,13 @@ export default function PhotoUploadModal({
   open,
   onOpenChange,
   onUploadComplete,
+  defaultFolderName = "",
+  folderId,
 }: PhotoUploadModalProps) {
   const [files, setFiles] = useState<FileUploadStatus[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [folderName, setFolderName] = useState(defaultFolderName);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = (file: File): string | null => {
@@ -113,11 +120,14 @@ export default function PhotoUploadModal({
 
     setIsUploading(true);
 
+    // If we have multiple files and a folder name, create folder once and use for all
+    let targetFolderId = folderId;
+
     // Process files with concurrency limit
     const queue = [...pendingFiles];
     const inProgress: Promise<void>[] = [];
 
-    const processFile = async (fileStatus: FileUploadStatus) => {
+    const processFile = async (fileStatus: FileUploadStatus, isFirst: boolean) => {
       const { file, id } = fileStatus;
 
       // Update status to uploading
@@ -130,6 +140,15 @@ export default function PhotoUploadModal({
       try {
         const formData = new FormData();
         formData.append("photos", file);
+        
+        // Add folder info - only create folder on first file upload
+        if (targetFolderId) {
+          formData.append("folderId", targetFolderId);
+        } else if (isFirst && folderName.trim()) {
+          formData.append("folderName", folderName.trim());
+        } else if (targetFolderId) {
+          formData.append("folderId", targetFolderId);
+        }
 
         // Update progress during upload
         setFiles((prev) =>
@@ -157,6 +176,10 @@ export default function PhotoUploadModal({
         const result = data.results?.[0];
 
         if (result?.success) {
+          // Capture folderId from first upload for subsequent uploads
+          if (data.folderId && !targetFolderId) {
+            targetFolderId = data.folderId;
+          }
           setFiles((prev) =>
             prev.map((f) =>
               f.id === id
@@ -183,24 +206,11 @@ export default function PhotoUploadModal({
       }
     };
 
-    // Process with concurrency limit
-    while (queue.length > 0 || inProgress.length > 0) {
-      // Start new uploads up to the limit
-      while (queue.length > 0 && inProgress.length < MAX_CONCURRENT_UPLOADS) {
-        const fileToProcess = queue.shift()!;
-        const promise = processFile(fileToProcess).finally(() => {
-          const index = inProgress.indexOf(promise);
-          if (index > -1) {
-            inProgress.splice(index, 1);
-          }
-        });
-        inProgress.push(promise);
-      }
-
-      // Wait for at least one to complete before continuing
-      if (inProgress.length > 0) {
-        await Promise.race(inProgress);
-      }
+    // Process files sequentially to properly handle folder creation
+    let isFirst = true;
+    for (const fileStatus of pendingFiles) {
+      await processFile(fileStatus, isFirst);
+      isFirst = false;
     }
 
     setIsUploading(false);
@@ -210,6 +220,7 @@ export default function PhotoUploadModal({
   const handleClose = () => {
     if (!isUploading) {
       setFiles([]);
+      setFolderName(defaultFolderName);
       onOpenChange(false);
     }
   };
@@ -257,6 +268,27 @@ export default function PhotoUploadModal({
             Drag and drop photos or click to browse. Photos will be automatically tagged using AI.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Folder name input */}
+        {!folderId && (
+          <div className="space-y-2">
+            <Label htmlFor="folder-name" className="flex items-center gap-2">
+              <Folder className="h-4 w-4" />
+              Folder Name (optional)
+            </Label>
+            <Input
+              id="folder-name"
+              placeholder="e.g., Wedding Reception, Beach Portraits"
+              value={folderName}
+              onChange={(e) => setFolderName(e.target.value)}
+              disabled={isUploading}
+              data-testid="input-folder-name"
+            />
+            <p className="text-xs text-muted-foreground">
+              Group these photos into a folder for easier organization
+            </p>
+          </div>
+        )}
 
         {/* Drop zone */}
         <div

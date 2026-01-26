@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit, RefreshCw, FileText, Upload, ArrowUpDown } from "lucide-react";
+import { Plus, Trash2, Edit2, X, Check, Image as ImageIcon, Search, ChevronLeft, ChevronRight, FileEdit, RefreshCw, FileText, Upload, ArrowUpDown, Folder, FolderOpen, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -28,9 +29,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { TaggedPhoto } from "@shared/schema";
+import type { TaggedPhoto, PhotoFolder } from "@shared/schema";
 import Breadcrumb from "@/components/Breadcrumb";
 import PhotoUploadModal from "@/components/PhotoUploadModal";
 
@@ -48,6 +55,9 @@ export default function TaggedPhotos() {
   const [currentPage, setCurrentPage] = useState(1);
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string; description: string; tags: string[] } | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [newFolderName, setNewFolderName] = useState("");
   
   const [formData, setFormData] = useState({
     photoId: "",
@@ -56,10 +66,36 @@ export default function TaggedPhotos() {
     tags: "",
   });
 
+  // Fetch all photos (for unfiled view)
   const { data: photos = [], isLoading, error, isError } = useQuery<TaggedPhoto[]>({
     queryKey: ["/api/tagged-photos"],
-    refetchInterval: 5000, // Auto-refresh every 5 seconds
+    refetchInterval: 5000,
   });
+
+  // Fetch folders
+  const { data: folders = [] } = useQuery<PhotoFolder[]>({
+    queryKey: ["/api/photo-folders"],
+    refetchInterval: 5000,
+  });
+
+  // Fetch photos in current folder (when viewing a folder)
+  const { data: folderPhotos = [] } = useQuery<TaggedPhoto[]>({
+    queryKey: ["/api/photo-folders", currentFolderId, "photos"],
+    queryFn: async () => {
+      if (!currentFolderId) return [];
+      const response = await fetch(`/api/photo-folders/${currentFolderId}/photos`);
+      if (!response.ok) throw new Error("Failed to fetch folder photos");
+      return response.json();
+    },
+    enabled: !!currentFolderId,
+    refetchInterval: 5000,
+  });
+
+  // Get current folder info
+  const currentFolder = useMemo(() => {
+    if (!currentFolderId) return null;
+    return folders.find(f => f.id === currentFolderId) || null;
+  }, [currentFolderId, folders]);
 
   // Get photos currently in prepared posts (draft/pending/approved)
   const { data: photosInPosts = [] } = useQuery<string[]>({
@@ -76,9 +112,22 @@ export default function TaggedPhotos() {
   }
 
 
+  // Get photos without folders (unfiled)
+  const unfiledPhotos = useMemo(() => {
+    return photos.filter(p => !p.folderId);
+  }, [photos]);
+
+  // Determine which photos to show based on current view
+  const activePhotos = useMemo(() => {
+    if (currentFolderId) {
+      return folderPhotos;
+    }
+    return unfiledPhotos;
+  }, [currentFolderId, folderPhotos, unfiledPhotos]);
+
   // Filter and sort photos
   const filteredPhotos = useMemo(() => {
-    let result = photos;
+    let result = activePhotos;
     
     // Filter by search term
     if (searchTerm.trim()) {
@@ -100,7 +149,7 @@ export default function TaggedPhotos() {
     });
     
     return result;
-  }, [photos, searchTerm, sortOrder]);
+  }, [activePhotos, searchTerm, sortOrder]);
 
   // Pagination
   const totalPages = Math.ceil(filteredPhotos.length / ITEMS_PER_PAGE);
@@ -172,6 +221,29 @@ export default function TaggedPhotos() {
     },
   });
 
+  const renameFolderMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      apiRequest("PUT", `/api/photo-folders/${id}`, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/photo-folders"] });
+      setRenamingFolderId(null);
+      setNewFolderName("");
+      toast({ title: "Folder renamed", description: "The folder has been renamed." });
+    },
+  });
+
+  const deleteFolderMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/photo-folders/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/photo-folders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] });
+      if (currentFolderId) {
+        setCurrentFolderId(null);
+      }
+      toast({ title: "Folder deleted", description: "The folder has been deleted. Photos moved to unfiled." });
+    },
+  });
+
   const resetForm = () => {
     setFormData({ photoId: "", photoUrl: "", description: "", tags: "" });
   };
@@ -182,7 +254,36 @@ export default function TaggedPhotos() {
 
   const handleUploadComplete = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/photo-folders"] });
+    if (currentFolderId) {
+      queryClient.invalidateQueries({ queryKey: ["/api/photo-folders", currentFolderId, "photos"] });
+    }
     toast({ title: "Photos uploaded", description: "Your photos have been uploaded and tagged." });
+  };
+
+  const handleOpenFolder = (folderId: string) => {
+    setCurrentFolderId(folderId);
+    setCurrentPage(1);
+    setSearchTerm("");
+    setSelectedPhotos(new Set());
+  };
+
+  const handleBackToFolders = () => {
+    setCurrentFolderId(null);
+    setCurrentPage(1);
+    setSearchTerm("");
+    setSelectedPhotos(new Set());
+  };
+
+  const handleRenameFolder = (folder: PhotoFolder) => {
+    setRenamingFolderId(folder.id);
+    setNewFolderName(folder.name);
+  };
+
+  const submitRenameFolder = () => {
+    if (renamingFolderId && newFolderName.trim()) {
+      renameFolderMutation.mutate({ id: renamingFolderId, name: newFolderName.trim() });
+    }
   };
 
   const handleEdit = (photo: TaggedPhoto) => {
@@ -300,20 +401,35 @@ export default function TaggedPhotos() {
   return (
     <div className="flex flex-1 flex-col">
       <div className="border-b px-6 py-3">
-        <Breadcrumb items={[{ label: "Tagged Photos" }]} />
+        <Breadcrumb items={currentFolder 
+          ? [
+              { label: "Photo Library", onClick: handleBackToFolders },
+              { label: currentFolder.name }
+            ]
+          : [{ label: "Photo Library" }]
+        } />
       </div>
 
       <div className="flex-1 p-6">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold" data-testid="text-page-title">
-              Photo Library
+              {currentFolder ? currentFolder.name : "Photo Library"}
             </h2>
             <p className="text-sm text-muted-foreground">
-              {searchTerm ? `${filteredPhotos.length} of ${photos.length}` : photos.length} photo{photos.length !== 1 ? "s" : ""} in library
+              {currentFolder 
+                ? `${filteredPhotos.length} photo${filteredPhotos.length !== 1 ? "s" : ""} in folder`
+                : `${folders.length} folder${folders.length !== 1 ? "s" : ""}, ${unfiledPhotos.length} unfiled photo${unfiledPhotos.length !== 1 ? "s" : ""}`
+              }
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {currentFolder && (
+              <Button variant="outline" onClick={handleBackToFolders} data-testid="button-back-to-folders">
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                All Folders
+              </Button>
+            )}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -357,7 +473,10 @@ export default function TaggedPhotos() {
             <Button 
               variant="outline"
               size="icon"
-              onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] })}
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/photo-folders"] });
+              }}
               data-testid="button-refresh-photos"
               title="Refresh photos"
             >
@@ -369,6 +488,65 @@ export default function TaggedPhotos() {
             </Button>
           </div>
         </div>
+
+        {/* Folder Grid - show when not inside a folder */}
+        {!currentFolderId && folders.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-muted-foreground mb-3">Folders</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {folders.map((folder) => (
+                <Card
+                  key={folder.id}
+                  className="group cursor-pointer hover-elevate p-4"
+                  onClick={() => handleOpenFolder(folder.id)}
+                  data-testid={`folder-${folder.id}`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <FolderOpen className="h-8 w-8 text-primary flex-shrink-0" />
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          data-testid={`folder-menu-${folder.id}`}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem onClick={() => handleRenameFolder(folder)}>
+                          <Edit2 className="mr-2 h-4 w-4" />
+                          Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => deleteFolderMutation.mutate(folder.id)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <p className="mt-2 text-sm font-medium truncate" title={folder.name}>
+                    {folder.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {photos.filter(p => p.folderId === folder.id).length} photos
+                  </p>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Section header for unfiled photos when not in a folder */}
+        {!currentFolderId && folders.length > 0 && unfiledPhotos.length > 0 && (
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">Unfiled Photos</h3>
+        )}
 
         {/* Error display */}
         {isError && (
@@ -699,7 +877,39 @@ export default function TaggedPhotos() {
         open={uploadModalOpen}
         onOpenChange={setUploadModalOpen}
         onUploadComplete={handleUploadComplete}
+        folderId={currentFolderId || undefined}
+        defaultFolderName={currentFolder?.name}
       />
+
+      {/* Folder Rename Dialog */}
+      <Dialog open={!!renamingFolderId} onOpenChange={(open) => !open && setRenamingFolderId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Folder</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              placeholder="Enter new folder name"
+              data-testid="input-rename-folder"
+              onKeyDown={(e) => e.key === "Enter" && submitRenameFolder()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenamingFolderId(null)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={submitRenameFolder}
+              disabled={!newFolderName.trim() || renameFolderMutation.isPending}
+              data-testid="button-confirm-rename"
+            >
+              Rename
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

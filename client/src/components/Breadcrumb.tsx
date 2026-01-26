@@ -4,6 +4,7 @@ import { Link } from "wouter";
 export interface BreadcrumbItem {
   label: string;
   href?: string;
+  onClick?: () => void;
 }
 
 interface BreadcrumbProps {
@@ -36,6 +37,15 @@ export default function Breadcrumb({ items }: BreadcrumbProps) {
             >
               {item.label}
             </Link>
+          ) : item.onClick ? (
+            <button
+              type="button"
+              onClick={item.onClick}
+              className="text-muted-foreground hover:text-foreground cursor-pointer"
+              data-testid={`link-breadcrumb-${index}`}
+            >
+              {item.label}
+            </button>
           ) : (
             <span 
               className="font-medium text-foreground"

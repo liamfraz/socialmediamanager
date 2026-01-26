@@ -1133,6 +1133,99 @@ export async function registerRoutes(
     }
   });
 
+  // Photo Folders routes
+  app.get("/api/photo-folders", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const folders = await storage.getAllPhotoFolders(userId);
+      res.json(folders);
+    } catch (error) {
+      console.error("Error fetching photo folders:", error);
+      res.status(500).json({ error: "Failed to fetch photo folders" });
+    }
+  });
+
+  app.get("/api/photo-folders/:id", async (req, res) => {
+    try {
+      const folder = await storage.getPhotoFolder(req.params.id);
+      if (!folder) {
+        return res.status(404).json({ error: "Folder not found" });
+      }
+      res.json(folder);
+    } catch (error) {
+      console.error("Error fetching photo folder:", error);
+      res.status(500).json({ error: "Failed to fetch photo folder" });
+    }
+  });
+
+  app.get("/api/photo-folders/:id/photos", async (req, res) => {
+    try {
+      const photos = await storage.getPhotosInFolder(req.params.id);
+      res.json(photos);
+    } catch (error) {
+      console.error("Error fetching photos in folder:", error);
+      res.status(500).json({ error: "Failed to fetch photos in folder" });
+    }
+  });
+
+  app.get("/api/photo-folders-without-folder", async (req, res) => {
+    try {
+      const photos = await storage.getPhotosWithoutFolder();
+      res.json(photos);
+    } catch (error) {
+      console.error("Error fetching photos without folder:", error);
+      res.status(500).json({ error: "Failed to fetch photos without folder" });
+    }
+  });
+
+  app.post("/api/photo-folders", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const { name } = req.body;
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ error: "Folder name is required" });
+      }
+      const folder = await storage.createPhotoFolder({ name, userId });
+      res.status(201).json(folder);
+    } catch (error) {
+      console.error("Error creating photo folder:", error);
+      res.status(500).json({ error: "Failed to create photo folder" });
+    }
+  });
+
+  app.put("/api/photo-folders/:id", async (req, res) => {
+    try {
+      const { name } = req.body;
+      const folder = await storage.updatePhotoFolder(req.params.id, { name });
+      if (!folder) {
+        return res.status(404).json({ error: "Folder not found" });
+      }
+      res.json(folder);
+    } catch (error) {
+      console.error("Error updating photo folder:", error);
+      res.status(500).json({ error: "Failed to update photo folder" });
+    }
+  });
+
+  app.delete("/api/photo-folders/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deletePhotoFolder(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Folder not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting photo folder:", error);
+      res.status(500).json({ error: "Failed to delete photo folder" });
+    }
+  });
+
   // Tagged Photos routes (scoped by user)
   app.get("/api/tagged-photos", async (req, res) => {
     try {

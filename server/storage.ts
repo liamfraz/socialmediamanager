@@ -1,4 +1,4 @@
-import { users, posts, taggedPhotos, postingSettings, instagramCredentials, type User, type InsertUser, type Post, type InsertPost, type TaggedPhoto, type InsertTaggedPhoto, type PostingSettings, type InstagramCredentials, type InsertInstagramCredentials } from "@shared/schema";
+import { users, posts, taggedPhotos, postingSettings, instagramCredentials, photoFolders, type User, type InsertUser, type Post, type InsertPost, type TaggedPhoto, type InsertTaggedPhoto, type PostingSettings, type InstagramCredentials, type InsertInstagramCredentials, type PhotoFolder, type InsertPhotoFolder } from "@shared/schema";
 import { db } from "./db";
 import { eq, asc, and, max, desc } from "drizzle-orm";
 
@@ -40,6 +40,15 @@ export interface IStorage {
   getInstagramCredentials(userId: string): Promise<InstagramCredentials | undefined>;
   saveInstagramCredentials(credentials: InsertInstagramCredentials): Promise<InstagramCredentials>;
   deleteInstagramCredentials(userId: string): Promise<boolean>;
+
+  // Photo Folder operations
+  getAllPhotoFolders(userId?: string): Promise<PhotoFolder[]>;
+  getPhotoFolder(id: string): Promise<PhotoFolder | undefined>;
+  createPhotoFolder(folder: InsertPhotoFolder): Promise<PhotoFolder>;
+  updatePhotoFolder(id: string, data: Partial<InsertPhotoFolder>): Promise<PhotoFolder | undefined>;
+  deletePhotoFolder(id: string): Promise<boolean>;
+  getPhotosInFolder(folderId: string): Promise<TaggedPhoto[]>;
+  getPhotosWithoutFolder(): Promise<TaggedPhoto[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -253,6 +262,46 @@ export class DatabaseStorage implements IStorage {
   async deleteInstagramCredentials(userId: string): Promise<boolean> {
     const result = await db.delete(instagramCredentials).where(eq(instagramCredentials.userId, userId)).returning();
     return result.length > 0;
+  }
+
+  // Photo Folder operations
+  async getAllPhotoFolders(userId?: string): Promise<PhotoFolder[]> {
+    if (userId) {
+      return db.select().from(photoFolders).where(eq(photoFolders.userId, userId)).orderBy(desc(photoFolders.createdAt));
+    }
+    return db.select().from(photoFolders).orderBy(desc(photoFolders.createdAt));
+  }
+
+  async getPhotoFolder(id: string): Promise<PhotoFolder | undefined> {
+    const [folder] = await db.select().from(photoFolders).where(eq(photoFolders.id, id));
+    return folder || undefined;
+  }
+
+  async createPhotoFolder(insertFolder: InsertPhotoFolder): Promise<PhotoFolder> {
+    const [folder] = await db.insert(photoFolders).values(insertFolder).returning();
+    return folder;
+  }
+
+  async updatePhotoFolder(id: string, data: Partial<InsertPhotoFolder>): Promise<PhotoFolder | undefined> {
+    const [folder] = await db.update(photoFolders).set(data).where(eq(photoFolders.id, id)).returning();
+    return folder || undefined;
+  }
+
+  async deletePhotoFolder(id: string): Promise<boolean> {
+    // First, unassign all photos from this folder
+    await db.update(taggedPhotos).set({ folderId: null }).where(eq(taggedPhotos.folderId, id));
+    // Then delete the folder
+    const result = await db.delete(photoFolders).where(eq(photoFolders.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getPhotosInFolder(folderId: string): Promise<TaggedPhoto[]> {
+    return db.select().from(taggedPhotos).where(eq(taggedPhotos.folderId, folderId)).orderBy(desc(taggedPhotos.createdAt));
+  }
+
+  async getPhotosWithoutFolder(): Promise<TaggedPhoto[]> {
+    const { isNull } = await import("drizzle-orm");
+    return db.select().from(taggedPhotos).where(isNull(taggedPhotos.folderId)).orderBy(desc(taggedPhotos.createdAt));
   }
 }
 

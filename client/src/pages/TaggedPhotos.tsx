@@ -79,14 +79,9 @@ export default function TaggedPhotos() {
   });
 
   // Fetch photos in current folder (when viewing a folder)
+  // Using a URL that the default queryFn will fetch from
   const { data: folderPhotos = [] } = useQuery<TaggedPhoto[]>({
-    queryKey: ["/api/photo-folders", currentFolderId, "photos"],
-    queryFn: async () => {
-      if (!currentFolderId) return [];
-      const response = await fetch(`/api/photo-folders/${currentFolderId}/photos`);
-      if (!response.ok) throw new Error("Failed to fetch folder photos");
-      return response.json();
-    },
+    queryKey: [`/api/photo-folders/${currentFolderId}/photos`],
     enabled: !!currentFolderId,
     refetchInterval: 5000,
   });
@@ -256,7 +251,7 @@ export default function TaggedPhotos() {
     queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] });
     queryClient.invalidateQueries({ queryKey: ["/api/photo-folders"] });
     if (currentFolderId) {
-      queryClient.invalidateQueries({ queryKey: ["/api/photo-folders", currentFolderId, "photos"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/photo-folders/${currentFolderId}/photos`] });
     }
     toast({ title: "Photos uploaded", description: "Your photos have been uploaded and tagged." });
   };

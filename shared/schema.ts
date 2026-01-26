@@ -76,6 +76,21 @@ export const reorderSchema = z.object({
 export type InsertPost = z.infer<typeof insertPostSchema>;
 export type Post = typeof posts.$inferSelect;
 
+// Photo Folders table for organizing uploads
+export const photoFolders = pgTable("photo_folders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertPhotoFolderSchema = createInsertSchema(photoFolders).omit({
+  id: true,
+});
+
+export type InsertPhotoFolder = z.infer<typeof insertPhotoFolderSchema>;
+export type PhotoFolder = typeof photoFolders.$inferSelect;
+
 // Tagged photo status values
 export const taggedPhotoStatusValues = ["available", "posted"] as const;
 export type TaggedPhotoStatus = typeof taggedPhotoStatusValues[number];
@@ -85,6 +100,7 @@ export const taggedPhotoStatusEnum = z.enum(taggedPhotoStatusValues);
 export const taggedPhotos = pgTable("tagged_photos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id),
+  folderId: varchar("folder_id").references(() => photoFolders.id),
   photoId: text("photo_id").notNull(),
   photoUrl: text("photo_url").notNull(),
   description: text("description"),

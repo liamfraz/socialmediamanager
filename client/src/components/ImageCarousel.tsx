@@ -27,6 +27,15 @@ export default function ImageCarousel({
     }
   }, [selectedIndex]);
 
+  // Clamp index when images array shrinks
+  useEffect(() => {
+    if (images.length > 0 && currentIndex >= images.length) {
+      const newIndex = Math.max(0, images.length - 1);
+      setInternalIndex(newIndex);
+      onIndexChange?.(newIndex);
+    }
+  }, [images.length, currentIndex, onIndexChange]);
+
   if (images.length === 0) return null;
 
   const setIndex = (newIndex: number) => {

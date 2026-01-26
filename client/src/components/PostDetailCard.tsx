@@ -55,10 +55,12 @@ interface SortableImageProps {
   id: string;
   url: string;
   index: number;
+  isSelected: boolean;
   onRemove: (index: number) => void;
+  onClick: (index: number) => void;
 }
 
-function SortableImage({ id, url, index, onRemove }: SortableImageProps) {
+function SortableImage({ id, url, index, isSelected, onRemove, onClick }: SortableImageProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const {
     attributes,
@@ -87,7 +89,14 @@ function SortableImage({ id, url, index, onRemove }: SortableImageProps) {
       <img
         src={url}
         alt={`Thumbnail ${index + 1}`}
-        className="h-12 w-12 rounded-md object-cover"
+        className={`h-12 w-12 rounded-md object-cover transition-all ${
+          isSelected ? "ring-2 ring-primary ring-offset-2" : "hover:opacity-80"
+        }`}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          onClick(index);
+        }}
+        data-testid={`button-thumbnail-${index}`}
       />
       {confirmDelete ? (
         <div 
@@ -170,6 +179,7 @@ export default function PostDetailCard({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
+  const [carouselIndex, setCarouselIndex] = useState(0);
 
   // Mutation for regenerating caption
   const regenerateMutation = useMutation({
@@ -451,7 +461,12 @@ export default function PostDetailCard({
 
       <CardContent className="space-y-4 p-6">
         {currentImages.length > 0 && (
-          <ImageCarousel images={currentImages} size="lg" />
+          <ImageCarousel 
+            images={currentImages} 
+            size="lg" 
+            selectedIndex={carouselIndex}
+            onIndexChange={setCarouselIndex}
+          />
         )}
 
         <div className="space-y-3">
@@ -486,7 +501,9 @@ export default function PostDetailCard({
                       id={imageIds[idx]}
                       url={img}
                       index={idx}
+                      isSelected={carouselIndex === idx}
                       onRemove={handleRemoveImage}
+                      onClick={setCarouselIndex}
                     />
                   ))}
                 </div>

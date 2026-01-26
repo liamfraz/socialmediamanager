@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -6,21 +6,44 @@ interface ImageCarouselProps {
   images: string[];
   size?: "sm" | "lg";
   className?: string;
+  selectedIndex?: number;
+  onIndexChange?: (index: number) => void;
 }
 
-export default function ImageCarousel({ images, size = "lg", className = "" }: ImageCarouselProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
+export default function ImageCarousel({ 
+  images, 
+  size = "lg", 
+  className = "",
+  selectedIndex,
+  onIndexChange,
+}: ImageCarouselProps) {
+  const [internalIndex, setInternalIndex] = useState(0);
+  
+  const currentIndex = selectedIndex ?? internalIndex;
+  
+  useEffect(() => {
+    if (selectedIndex !== undefined) {
+      setInternalIndex(selectedIndex);
+    }
+  }, [selectedIndex]);
 
   if (images.length === 0) return null;
 
+  const setIndex = (newIndex: number) => {
+    setInternalIndex(newIndex);
+    onIndexChange?.(newIndex);
+  };
+
   const handlePrev = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setCurrentIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+    const newIndex = currentIndex === 0 ? images.length - 1 : currentIndex - 1;
+    setIndex(newIndex);
   };
 
   const handleNext = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setCurrentIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+    const newIndex = currentIndex === images.length - 1 ? 0 : currentIndex + 1;
+    setIndex(newIndex);
   };
 
   const isSmall = size === "sm";

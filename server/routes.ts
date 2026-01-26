@@ -161,18 +161,18 @@ export async function registerRoutes(
       .filter(p => p.status === "approved")
       .sort((a, b) => a.order - b.order);
     
-    // 5pm Melbourne time (AEDT = UTC+11) = 6am UTC
+    // Start with today at 5pm local time
     const today = new Date();
-    today.setUTCHours(6, 0, 0, 0); // 5pm Melbourne = 6am UTC
+    today.setHours(17, 0, 0, 0); // 5pm local
     
-    // If today's 5pm Melbourne has passed, start from tomorrow
+    // If today's 5pm has passed, start from tomorrow
     if (new Date() >= today) {
-      today.setUTCDate(today.getUTCDate() + 1);
+      today.setDate(today.getDate() + 1);
     }
     
     for (let i = 0; i < approvedPosts.length; i++) {
       const scheduledDate = new Date(today);
-      scheduledDate.setUTCDate(today.getUTCDate() + i);
+      scheduledDate.setDate(today.getDate() + i);
       
       await storage.updatePost(approvedPosts[i].id, { scheduledDate });
     }

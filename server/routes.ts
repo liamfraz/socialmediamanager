@@ -502,7 +502,8 @@ export async function registerRoutes(
       res.json({ message: "Database seeded successfully", count: seedPosts.length, demoUserId: demoUser.id });
     } catch (error) {
       console.error("Error seeding database:", error);
-      res.status(500).json({ error: "Failed to seed database" });
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Failed to seed database", details: errorMessage });
     }
   });
 

@@ -309,6 +309,47 @@ export async function registerRoutes(
     }
   });
 
+  // Reject post and delete its photos from the library
+  app.post("/api/posts/:id/reject-with-delete", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const post = await storage.getPost(req.params.id);
+      if (!post || post.userId !== userId) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      // Delete photos from tagged photos library first
+      let deletedCount = 0;
+      if (post.images && post.images.length > 0) {
+        deletedCount = await storage.deleteTaggedPhotosByUrls(post.images);
+        console.log(`Deleted ${deletedCount} photos from library for rejected post ${req.params.id}`);
+      }
+
+      // Update the post status to rejected
+      const updatedPost = await storage.updatePostStatus(req.params.id, "rejected", userId);
+      
+      if (!updatedPost) {
+        return res.status(404).json({ error: "Failed to update post status" });
+      }
+
+      // Recalculate approved posts dates
+      await recalculateApprovedPostsDates(userId);
+
+      res.json({
+        post: updatedPost,
+        deletedPhotos: deletedCount,
+        message: `Post rejected and ${deletedCount} photo(s) deleted from library.`,
+      });
+    } catch (error) {
+      console.error("Error rejecting post with delete:", error);
+      res.status(500).json({ error: "Failed to reject post" });
+    }
+  });
+
   // Regenerate caption using AI - scoped to current user
   app.post("/api/posts/:id/regenerate-caption", async (req, res) => {
     try {

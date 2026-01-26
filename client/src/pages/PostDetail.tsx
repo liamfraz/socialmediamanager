@@ -5,6 +5,8 @@ import Breadcrumb from "@/components/Breadcrumb";
 import PostDetailCard from "@/components/PostDetailCard";
 import ActionPanel from "@/components/ActionPanel";
 import ConfirmationModal from "@/components/ConfirmationModal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import type { Post, PostLayout } from "@shared/schema";
 import type { PostStatus } from "@/components/StatusBadge";
@@ -149,16 +151,39 @@ export default function PostDetail() {
     setLocation("/review");
   };
 
-  const handleReject = async () => {
+  const handleRejectKeepPhotos = async () => {
     await updateStatusMutation.mutateAsync({ id: post.id, status: "rejected" });
     
     toast({
       title: "Post Rejected",
-      description: "The post has been rejected and won't be published.",
+      description: "The post has been rejected. Photos are still available.",
       variant: "destructive",
     });
     setRejectModalOpen(false);
     setLocation("/review");
+  };
+
+  const handleRejectDeletePhotos = async () => {
+    try {
+      // Reject the post and delete the photos from the library
+      await apiRequest("POST", `/api/posts/${post.id}/reject-with-delete`);
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] });
+      
+      toast({
+        title: "Post Rejected & Photos Deleted",
+        description: "The post has been rejected and photos removed from the library.",
+        variant: "destructive",
+      });
+      setRejectModalOpen(false);
+      setLocation("/review");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to reject post. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSendToReview = async () => {
@@ -256,15 +281,39 @@ export default function PostDetail() {
         onConfirm={handleApprove}
       />
 
-      <ConfirmationModal
-        open={rejectModalOpen}
-        onOpenChange={setRejectModalOpen}
-        title="Reject Post"
-        description="This post will be marked as rejected and won't be published. This action cannot be undone."
-        confirmLabel="Reject Post"
-        variant="destructive"
-        onConfirm={handleReject}
-      />
+      <Dialog open={rejectModalOpen} onOpenChange={setRejectModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject Post</DialogTitle>
+            <DialogDescription>
+              Why are you rejecting this post?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-4">
+            <div
+              onClick={handleRejectKeepPhotos}
+              className="p-4 border rounded-md cursor-pointer hover-elevate"
+              data-testid="button-reject-keep-photos"
+            >
+              <div className="font-medium">Bad Carousel</div>
+              <div className="text-sm text-muted-foreground">Keep the photos, just reject this arrangement</div>
+            </div>
+            <div
+              onClick={handleRejectDeletePhotos}
+              className="p-4 border border-destructive bg-destructive/10 rounded-md cursor-pointer hover-elevate"
+              data-testid="button-reject-delete-photos"
+            >
+              <div className="font-medium text-destructive">Bad Photos</div>
+              <div className="text-sm text-destructive/80">Delete photos from library permanently</div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRejectModalOpen(false)} data-testid="button-reject-cancel">
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmationModal
         open={sendToReviewModalOpen}

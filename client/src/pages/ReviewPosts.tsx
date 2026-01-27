@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -18,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Post, PostingSettings, PhotoFolder } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-type FilterType = "pending" | "approved" | "rejected" | "posted";
+type FilterType = "pending" | "approved" | "posted";
 
 export default function ReviewPosts() {
   const [, setLocation] = useLocation();
@@ -30,7 +31,7 @@ export default function ReviewPosts() {
   const [generationStatus, setGenerationStatus] = useState<Record<number, "pending" | "generating" | "done" | "error">>({});
   const [generationErrors, setGenerationErrors] = useState<Record<number, string>>({});
   const [newlyCreatedPosts, setNewlyCreatedPosts] = useState<Set<string>>(new Set());
-  const [selectedFolderId, setSelectedFolderId] = useState<string>("all");
+  const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([]);
   const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set());
   const knownPostIdsRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
@@ -114,8 +115,18 @@ export default function ReviewPosts() {
 
   const handleOpenGenerateDialog = () => {
     setPostTopics([""]);
-    setSelectedFolderId("all");
+    setSelectedFolderIds([]);
     setShowGenerateDialog(true);
+  };
+
+  const handleFolderToggle = (folderId: string) => {
+    setSelectedFolderIds(prev => {
+      if (prev.includes(folderId)) {
+        return prev.filter(id => id !== folderId);
+      } else {
+        return [...prev, folderId];
+      }
+    });
   };
 
   const handlePostCountChange = (value: string) => {
@@ -160,7 +171,7 @@ export default function ReviewPosts() {
     try {
       const response = await apiRequest("POST", "/api/generate-posts", {
         topics: filledTopics.map(t => t.trim()),
-        folderId: selectedFolderId !== "all" ? selectedFolderId : undefined
+        folderIds: selectedFolderIds.length > 0 ? selectedFolderIds : undefined
       });
       const data = await response.json();
 
@@ -211,12 +222,15 @@ export default function ReviewPosts() {
     } catch (error: any) {
       // Mark all as error
       const errorStatus: Record<number, "pending" | "generating" | "done" | "error"> = {};
+      const errorMessages: Record<number, string> = {};
+      const errorMessage = error?.message || "Failed to generate posts. Please try again.";
       filledTopics.forEach((_, i) => {
         errorStatus[i] = "error";
+        errorMessages[i] = errorMessage;
       });
       setGenerationStatus(errorStatus);
+      setGenerationErrors(errorMessages);
 
-      const errorMessage = error?.message || "Failed to generate posts. Please try again.";
       toast({
         title: "Error",
         description: errorMessage,
@@ -331,7 +345,6 @@ export default function ReviewPosts() {
   const counts = useMemo(() => ({
     pending: posts.filter((p) => p.status === "pending").length,
     approved: posts.filter((p) => p.status === "approved").length,
-    rejected: posts.filter((p) => p.status === "rejected").length,
     posted: posts.filter((p) => p.status === "posted").length,
   }), [posts]);
 
@@ -393,11 +406,7 @@ export default function ReviewPosts() {
               Posted
               <Badge variant="secondary" className="ml-1">{counts.posted}</Badge>
             </TabsTrigger>
-            <TabsTrigger value="rejected" className="gap-2" data-testid="tab-rejected">
-              Rejected
-              <Badge variant="secondary" className="ml-1">{counts.rejected}</Badge>
-            </TabsTrigger>
-          </TabsList>
+                      </TabsList>
         </Tabs>
         <div className="flex items-center gap-4 flex-wrap">
           {activeFilter === "pending" && counts.pending > 0 && (
@@ -497,20 +506,30 @@ export default function ReviewPosts() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-3">
-              <Label htmlFor="folder-filter" className="whitespace-nowrap">From folder</Label>
-              <Select value={selectedFolderId} onValueChange={setSelectedFolderId} disabled={isGenerating}>
-                <SelectTrigger id="folder-filter" className="flex-1" data-testid="select-folder-filter">
-                  <SelectValue placeholder="All folders" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All folders</SelectItem>
-                  <SelectItem value="unfiled">Unfiled photos</SelectItem>
-                  {folders.map((folder) => (
-                    <SelectItem key={folder.id} value={folder.id}>{folder.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-2">
+              <Label className="whitespace-nowrap">From folders {selectedFolderIds.length === 0 && <span className="text-muted-foreground font-normal">(all)</span>}</Label>
+              <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto p-2 border rounded-md bg-muted/30">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <Checkbox
+                    checked={selectedFolderIds.includes("unfiled")}
+                    onCheckedChange={() => handleFolderToggle("unfiled")}
+                    disabled={isGenerating}
+                    data-testid="checkbox-folder-unfiled"
+                  />
+                  <span className="text-sm">Unfiled</span>
+                </label>
+                {folders.map((folder) => (
+                  <label key={folder.id} className="flex items-center gap-1.5 cursor-pointer">
+                    <Checkbox
+                      checked={selectedFolderIds.includes(folder.id)}
+                      onCheckedChange={() => handleFolderToggle(folder.id)}
+                      disabled={isGenerating}
+                      data-testid={`checkbox-folder-${folder.id}`}
+                    />
+                    <span className="text-sm">{folder.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
             <div className="space-y-3 max-h-64 overflow-y-auto">
               {postTopics.map((topic, index) => (
@@ -539,7 +558,9 @@ export default function ReviewPosts() {
                       <Check className="h-4 w-4 text-green-500" />
                     )}
                     {generationStatus[index] === "error" && (
-                      <AlertCircle className="h-4 w-4 text-red-500" title={generationErrors[index]} />
+                      <div title={generationErrors[index]}>
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                      </div>
                     )}
                   </div>
                 </div>

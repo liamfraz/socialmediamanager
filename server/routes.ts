@@ -163,7 +163,7 @@ export async function registerRoutes(
     
     // Start with today at 5pm local time
     const today = new Date();
-    today.setHours(17, 0, 0, 0); // 5pm local
+    today.setHours(9, 0, 0, 0); // 9am local
     
     // If today's 5pm has passed, start from tomorrow
     if (new Date() >= today) {
@@ -591,7 +591,7 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      const { topics, maxPhotos = 10, folderId } = req.body;
+      const { topics, maxPhotos = 10, folderIds } = req.body;
 
       if (!topics || !Array.isArray(topics) || topics.length === 0) {
         return res.status(400).json({ error: "topics array is required" });
@@ -603,18 +603,24 @@ export async function registerRoutes(
         });
       }
 
-      // Fetch tagged photos - filter by folder if specified
+      // Fetch tagged photos - filter by folders if specified
       let allPhotos = await storage.getAllTaggedPhotos();
       const totalPhotosBeforeFilter = allPhotos.length;
       
-      if (folderId) {
-        if (folderId === "unfiled") {
-          // Only get photos without a folder
-          allPhotos = allPhotos.filter(p => !p.folderId);
-        } else {
-          // Get photos from specific folder
-          allPhotos = allPhotos.filter(p => p.folderId === folderId);
-        }
+      // Filter by selected folders (multiple can be selected)
+      if (folderIds && Array.isArray(folderIds) && folderIds.length > 0) {
+        allPhotos = allPhotos.filter(p => {
+          // Check if photo is in any of the selected folders
+          for (const folderId of folderIds) {
+            if (folderId === "unfiled" && !p.folderId) {
+              return true;
+            }
+            if (p.folderId === folderId) {
+              return true;
+            }
+          }
+          return false;
+        });
       }
 
       // Get all posts that have photos in use (pending, approved, draft)
@@ -642,10 +648,8 @@ export async function registerRoutes(
         let errorMessage = "No photos available.";
         if (totalPhotosBeforeFilter === 0) {
           errorMessage = "No photos in library. Upload photos first.";
-        } else if (folderId && allPhotos.length === 0) {
-          errorMessage = folderId === "unfiled" 
-            ? "No unfiled photos available." 
-            : "No photos in the selected folder.";
+        } else if (folderIds && folderIds.length > 0 && allPhotos.length === 0) {
+          errorMessage = "No photos found in the selected folder(s).";
         } else if (photosFilteredOut > 0) {
           errorMessage = `All ${photosFilteredOut} matching photo${photosFilteredOut > 1 ? 's are' : ' is'} already used in pending or draft posts.`;
         }
@@ -738,7 +742,7 @@ export async function registerRoutes(
           // Calculate scheduled date (tomorrow at 5:00 PM)
           const scheduledDate = new Date();
           scheduledDate.setDate(scheduledDate.getDate() + 1);
-          scheduledDate.setHours(17, 0, 0, 0);
+          scheduledDate.setHours(9, 0, 0, 0);
 
           // Create the post (with userId)
           const post = await storage.createPost({
@@ -1020,7 +1024,7 @@ export async function registerRoutes(
       // Calculate scheduled date (tomorrow at 5:00 PM)
       const scheduledDate = new Date();
       scheduledDate.setDate(scheduledDate.getDate() + 1);
-      scheduledDate.setHours(17, 0, 0, 0);
+      scheduledDate.setHours(9, 0, 0, 0);
 
       // Create the post at the top (order = 0)
       const post = await storage.createPost({

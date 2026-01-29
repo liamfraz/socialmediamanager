@@ -203,9 +203,11 @@ export default function ReviewPosts() {
         });
         queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
       } else {
+        // Get the first error from results if available
+        const firstError = data.results?.find((r: any) => !r.success)?.error;
         toast({
           title: "Generation failed",
-          description: data.error || "No posts were generated. Check your photo library.",
+          description: data.error || firstError || "No posts were generated. Check your photo library.",
           variant: "destructive",
         });
       }

@@ -15,6 +15,10 @@ import {
   exchangeCodeForToken,
   postToInstagram,
 } from "./instagram";
+import { ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
+
+// Initialize object storage service
+const objectStorageService = new ObjectStorageService();
 
 // Helper to get userId from session (throws if not authenticated)
 function getUserId(req: Request): string {
@@ -1044,13 +1048,27 @@ export async function registerRoutes(
     }
   });
 
-  // Serve uploaded files statically
+  // Serve uploaded files statically (legacy local files)
   app.use("/uploads", (req, res, next) => {
     const filePath = path.join(UPLOADS_DIR, req.path);
     if (fs.existsSync(filePath)) {
       res.sendFile(filePath);
     } else {
       res.status(404).json({ error: "File not found" });
+    }
+  });
+
+  // Serve files from object storage
+  app.get("/objects/*", async (req, res) => {
+    try {
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      await objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error("Error serving object:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: "Object not found" });
+      }
+      return res.status(500).json({ error: "Failed to serve object" });
     }
   });
 
@@ -1095,9 +1113,8 @@ export async function registerRoutes(
       for (const file of files) {
         try {
           const filePath = file.path;
-          const photoUrl = `/uploads/${file.filename}`;
 
-          // Analyze image with OpenAI Vision
+          // Analyze image with OpenAI Vision (using local file first)
           let tags: string[] = [];
           if (isOpenAIConfigured()) {
             console.log(`Analyzing image: ${file.originalname}`);
@@ -1112,6 +1129,30 @@ export async function registerRoutes(
             console.warn("OpenAI not configured, skipping tagging");
           }
 
+          // Upload to object storage for persistence across deployments
+          let photoUrl: string;
+          let storagePath: string;
+          try {
+            const fileBuffer = fs.readFileSync(filePath);
+            const uploadResult = await objectStorageService.uploadFile(
+              fileBuffer,
+              file.originalname,
+              file.mimetype
+            );
+            photoUrl = uploadResult.objectPath;
+            storagePath = uploadResult.objectPath;
+            console.log(`Uploaded ${file.originalname} to object storage: ${photoUrl}`);
+            // Clean up local temp file after successful upload
+            try {
+              fs.unlinkSync(filePath);
+            } catch {}
+          } catch (uploadError) {
+            console.warn(`Object storage upload failed, falling back to local: ${uploadError}`);
+            // Fallback to local storage if object storage fails
+            photoUrl = `/uploads/${file.filename}`;
+            storagePath = filePath;
+          }
+
           // Create tagged photo record in database (with userId and optional folderId)
           const photo = await storage.createTaggedPhoto({
             photoId: file.filename,
@@ -1119,7 +1160,7 @@ export async function registerRoutes(
             description: file.originalname,
             tags: tags.length > 0 ? tags : null,
             originalFilename: file.originalname,
-            storagePath: filePath,
+            storagePath: storagePath,
             userId,
             folderId,
           });

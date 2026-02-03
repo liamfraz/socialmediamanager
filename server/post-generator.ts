@@ -40,8 +40,11 @@ export interface PostGenerationResult {
 // ============================================
 
 const CURATOR_SYSTEM_PROMPT = `You are an Instagram Carousel Curator for a wedding photographer.
-You must select the best set of photos for an Instagram carousel based ONLY on the provided photo metadata.
-You must NOT invent details. You must NOT reference photos not provided.`;
+You must select photos that DIRECTLY match the user's requested topic.
+You must NOT invent details. You must NOT reference photos not provided.
+If the user asks for "bride" photos, you MUST select photos tagged with bride-related tags.
+If the user asks for "groom" photos, you MUST select photos tagged with groom-related tags.
+NEVER mix subjects - if the topic is about brides, do NOT include groom photos.`;
 
 function buildCuratorUserPrompt(photosForAI: PhotoForAI[], topic: string): string {
   return `You will receive:
@@ -54,20 +57,21 @@ Here is the EXACT "photos_for_ai" array you must choose from:
 
 ${JSON.stringify(photosForAI, null, 2)}
 
-You MUST make the post based off of this topic:
-${topic}
+USER'S REQUESTED TOPIC:
+"${topic}"
 
 YOUR TASK
-Based solely on the content of the photos_for_ai data above, generate one Instagram carousel that best represents the strongest visual story hidden in the provided data.
+Select photos that DIRECTLY match the user's topic above.
 
 You must:
-- Analyse all tags and descriptions to understand:
-  - what the subject matter is
-  - what themes appear repeatedly
-  - what type of moment/story the photos collectively suggest
-- Choose 5–10 photo IDs that fit the strongest theme/story you find
+- FIRST: Identify which photos have tags/descriptions that match the topic
+- ONLY select photos that are relevant to the topic
+- If the topic mentions "bride" or "bridal" - select ONLY photos with bride-related tags (bride, bridal, wedding dress, bouquet held by bride, etc.)
+- If the topic mentions "groom" - select ONLY photos with groom-related tags (groom, bow tie, suit, groomsmen, etc.)
+- If the topic mentions "flowers" or "bouquet" - select photos that feature flowers prominently
+- Choose 5–10 photo IDs that match the topic
 - No duplicates
-- If multiple themes appear, choose the most visually compelling or coherent theme
+- Do NOT select photos that don't match the topic, even if they look nice
 
 CRITICAL RULES (DO NOT BREAK)
 - Return photo IDs ONLY.

@@ -1807,10 +1807,10 @@ export async function registerRoutes(
 
         // Move post to "posted" status since n8n returned 200 OK
         await storage.updatePostStatus(post.id, "posted", userId);
-        // Mark any tagged photos used in this post as "posted"
+        // Remove photos from tagged photos library (they're now in the posted post)
         if (post.images && post.images.length > 0) {
-          const markedCount = await storage.markPhotosAsPosted(post.images);
-          console.log(`Marked ${markedCount} tagged photos as posted for post ${post.id}`);
+          const deletedCount = await storage.deleteTaggedPhotosByUrls(post.images);
+          console.log(`Removed ${deletedCount} photos from Tagged Photos for post ${post.id}`);
         }
         // Recalculate remaining approved posts dates
         await recalculateApprovedPostsDates(userId);
@@ -2041,9 +2041,10 @@ export async function registerRoutes(
       // Update post status to "posted"
       await storage.updatePostStatus(post.id, "posted");
 
-      // Mark photos as posted
+      // Remove photos from tagged photos library (they're now in the posted post)
       if (post.images && post.images.length > 0) {
-        await storage.markPhotosAsPosted(post.images);
+        const deletedCount = await storage.deleteTaggedPhotosByUrls(post.images);
+        console.log(`Removed ${deletedCount} photos from Tagged Photos for post ${post.id}`);
       }
 
       console.log(`[Instagram] Post ${post.id} published successfully: ${result.mediaId}`);
@@ -2081,10 +2082,10 @@ export async function registerRoutes(
         if (!POSTING_WEBHOOK_URL) {
           console.log("No webhook URL configured. Moving post to posted:", post.id);
           await storage.updatePostStatus(post.id, "posted");
-          // Mark any tagged photos used in this post as "posted"
+          // Remove photos from tagged photos library
           if (post.images && post.images.length > 0) {
-            const markedCount = await storage.markPhotosAsPosted(post.images);
-            console.log(`Marked ${markedCount} tagged photos as posted for post ${post.id}`);
+            const deletedCount = await storage.deleteTaggedPhotosByUrls(post.images);
+            console.log(`Removed ${deletedCount} photos from Tagged Photos for post ${post.id}`);
           }
           continue;
         }
@@ -2109,10 +2110,10 @@ export async function registerRoutes(
 
           // Move to posted regardless of response (single attempt, no retries)
           await storage.updatePostStatus(post.id, "posted");
-          // Mark any tagged photos used in this post as "posted"
+          // Remove photos from tagged photos library
           if (post.images && post.images.length > 0) {
-            const markedCount = await storage.markPhotosAsPosted(post.images);
-            console.log(`Marked ${markedCount} tagged photos as posted for post ${post.id}`);
+            const deletedCount = await storage.deleteTaggedPhotosByUrls(post.images);
+            console.log(`Removed ${deletedCount} photos from Tagged Photos for post ${post.id}`);
           }
           console.log(`Post ${post.id} sent to webhook and moved to 'posted' status`);
           
@@ -2122,10 +2123,10 @@ export async function registerRoutes(
           // Even if webhook fails, move to posted to prevent retries
           console.error(`Failed to send post ${post.id} to webhook:`, error);
           await storage.updatePostStatus(post.id, "posted");
-          // Mark any tagged photos used in this post as "posted"
+          // Remove photos from tagged photos library
           if (post.images && post.images.length > 0) {
-            const markedCount = await storage.markPhotosAsPosted(post.images);
-            console.log(`Marked ${markedCount} tagged photos as posted for post ${post.id}`);
+            const deletedCount = await storage.deleteTaggedPhotosByUrls(post.images);
+            console.log(`Removed ${deletedCount} photos from Tagged Photos for post ${post.id}`);
           }
           await recalculateApprovedPostsDates();
         }

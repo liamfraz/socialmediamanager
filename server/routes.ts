@@ -1416,10 +1416,35 @@ export async function registerRoutes(
     }
   });
 
-  // Get posted tagged photos
+  // Get all images from posted posts (not just those in tagged_photos)
   app.get("/api/tagged-photos/posted", async (req, res) => {
     try {
-      const photos = await storage.getPostedTaggedPhotos();
+      const postedPosts = await storage.getPostsByStatus("posted");
+      const allPostedImages: { photoUrl: string; postedAt: Date | null }[] = [];
+      
+      for (const post of postedPosts) {
+        if (post.images && post.images.length > 0) {
+          for (const imageUrl of post.images) {
+            allPostedImages.push({
+              photoUrl: imageUrl,
+              postedAt: post.postedAt || null,
+            });
+          }
+        }
+      }
+      
+      // Return in a format compatible with the frontend
+      const photos = allPostedImages.map((img, index) => ({
+        id: `posted-${index}`,
+        photoId: img.photoUrl,
+        photoUrl: img.photoUrl,
+        description: null,
+        tags: [],
+        status: "posted" as const,
+        postedAt: img.postedAt,
+        folder: null,
+      }));
+      
       res.json(photos);
     } catch (error) {
       console.error("Error fetching posted photos:", error);

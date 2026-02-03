@@ -1419,7 +1419,8 @@ export async function registerRoutes(
   // Get all images from posted posts (not just those in tagged_photos)
   app.get("/api/tagged-photos/posted", async (req, res) => {
     try {
-      const postedPosts = await storage.getPostsByStatus("posted");
+      const allPosts = await storage.getAllPosts();
+      const postedPosts = allPosts.filter(p => p.status === "posted");
       const allPostedImages: { photoUrl: string; postedAt: Date | null }[] = [];
       
       for (const post of postedPosts) {

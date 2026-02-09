@@ -45,3 +45,6 @@ integrations = ["javascript_database:1.0.0", "javascript_object_storage:2.0.0"]
 
 [userenv.shared]
 N8N_POSTING_WEBHOOK_URL = "https://liamfraz3.app.n8n.cloud/webhook/BPosting"
+
+[userenv.production]
+APP_BASE_URL = "https://socials.flowtechadvisory.com.au"

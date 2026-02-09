@@ -2077,6 +2077,12 @@ export async function registerRoutes(
         return;
       }
 
+      // Build base URL for converting relative image paths to full URLs
+      // Priority: APP_BASE_URL (custom domain) > REPLIT_DOMAINS > REPLIT_DEV_DOMAIN > localhost
+      const appBaseUrl = process.env.APP_BASE_URL;
+      const replitDomain = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN;
+      const baseUrl = appBaseUrl || (replitDomain ? `https://${replitDomain}` : `http://localhost:${process.env.PORT || 5000}`);
+
       // Process each due post once
       for (const post of duePosts) {
         if (!POSTING_WEBHOOK_URL) {
@@ -2090,10 +2096,22 @@ export async function registerRoutes(
           continue;
         }
 
+        // Convert local image paths to full URLs (same as manual posting)
+        const imageUrls = (post.images || []).map((img) => {
+          if (img.startsWith("/")) {
+            return `${baseUrl}${img}`;
+          }
+          return img;
+        });
+
         console.log(`Sending post ${post.id} to webhook (single attempt)...`);
+        console.log(`Scheduled post images:`, imageUrls);
         
         try {
-          // Send to n8n webhook
+          // Send to n8n webhook with 2-minute timeout for Instagram uploads
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 120000);
+
           const response = await fetch(POSTING_WEBHOOK_URL, {
             method: "POST",
             headers: {
@@ -2102,11 +2120,14 @@ export async function registerRoutes(
             body: JSON.stringify({
               postId: post.id,
               caption: post.content,
-              images: post.images || [],
+              images: imageUrls,
               collaborators: post.collaborators || [],
               scheduledDate: post.scheduledDate,
             }),
+            signal: controller.signal,
           });
+
+          clearTimeout(timeoutId);
 
           // Move to posted regardless of response (single attempt, no retries)
           await storage.updatePostStatus(post.id, "posted");

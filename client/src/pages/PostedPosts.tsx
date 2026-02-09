@@ -41,7 +41,11 @@ export default function PostedPosts() {
   const postedPosts = useMemo(() => {
     return posts
       .filter((post) => post.status === "posted")
-      .sort((a, b) => a.order - b.order);
+      .sort((a, b) => {
+        const dateA = a.scheduledDate ? new Date(a.scheduledDate).getTime() : 0;
+        const dateB = b.scheduledDate ? new Date(b.scheduledDate).getTime() : 0;
+        return dateB - dateA;
+      });
   }, [posts]);
 
   const totalPages = Math.ceil(postedPhotos.length / PHOTOS_PER_PAGE);

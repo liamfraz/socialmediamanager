@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -37,6 +37,7 @@ export const posts = pgTable("posts", {
   collaborators: text("collaborators").array(),
   order: integer("order").notNull(),
   layout: text("layout").notNull().default("single"),
+  dateManuallySet: boolean("date_manually_set").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 

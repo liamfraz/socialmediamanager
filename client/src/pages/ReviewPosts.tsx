@@ -323,11 +323,15 @@ export default function ReviewPosts() {
     return posts
       .filter((post) => post.status === activeFilter)
       .sort((a, b) => {
-        // Sort by scheduled date (earliest first) for approved posts, otherwise by order
         if (activeFilter === "approved") {
           const dateA = a.scheduledDate ? new Date(a.scheduledDate).getTime() : 0;
           const dateB = b.scheduledDate ? new Date(b.scheduledDate).getTime() : 0;
           return dateA - dateB;
+        }
+        if (activeFilter === "posted") {
+          const dateA = a.scheduledDate ? new Date(a.scheduledDate).getTime() : 0;
+          const dateB = b.scheduledDate ? new Date(b.scheduledDate).getTime() : 0;
+          return dateB - dateA;
         }
         return a.order - b.order;
       });

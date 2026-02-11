@@ -86,8 +86,6 @@ export default function ReviewPosts() {
 
   useEffect(() => {
     apiRequest("POST", "/api/seed").catch(() => {});
-    // Recalculate dates on initial load
-    apiRequest("POST", "/api/posts/recalculate-dates").catch(() => {});
   }, []);
 
   // Fetch posting settings
@@ -336,10 +334,14 @@ export default function ReviewPosts() {
   }, [posts, activeFilter]);
 
   useEffect(() => {
-    // Only update if the post IDs or order have changed to prevent infinite loops
+    // Only sync from server if the set of post IDs changed (added/removed posts)
+    // or if no mutation is currently in progress (prevents overwriting optimistic updates)
     const filteredIds = filteredPosts.map(p => p.id).join(',');
     const localIds = localPosts.map(p => p.id).join(',');
     if (filteredIds !== localIds) {
+      setLocalPosts(filteredPosts);
+    } else if (!updateTimeMutation.isPending) {
+      // Safe to sync full data from server when no time mutation is in flight
       setLocalPosts(filteredPosts);
     }
   }, [filteredPosts]);

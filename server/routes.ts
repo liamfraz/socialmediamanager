@@ -165,20 +165,26 @@ export async function registerRoutes(
       .filter(p => p.status === "approved")
       .sort((a, b) => a.order - b.order);
     
-    // Start with today at 5pm local time
+    // Start with today at 9am local time
     const today = new Date();
-    today.setHours(9, 0, 0, 0); // 9am local
+    today.setHours(9, 0, 0, 0);
     
-    // If today's 5pm has passed, start from tomorrow
+    // If today's 9am has passed, start from tomorrow
     if (new Date() >= today) {
       today.setDate(today.getDate() + 1);
     }
     
-    for (let i = 0; i < approvedPosts.length; i++) {
+    // Only assign dates to posts that were NOT manually set by the user
+    let autoIndex = 0;
+    for (const post of approvedPosts) {
+      if (post.dateManuallySet) {
+        // Skip posts with manually set dates - don't overwrite them
+        continue;
+      }
       const scheduledDate = new Date(today);
-      scheduledDate.setDate(today.getDate() + i);
-      
-      await storage.updatePost(approvedPosts[i].id, { scheduledDate });
+      scheduledDate.setDate(today.getDate() + autoIndex);
+      await storage.updatePost(post.id, { scheduledDate });
+      autoIndex++;
     }
   }
 
@@ -260,6 +266,10 @@ export async function registerRoutes(
       }
 
       const validatedData = updatePostSchema.parse(req.body);
+      // If user is manually setting a scheduledDate, mark it as manually set
+      if (validatedData.scheduledDate) {
+        (validatedData as any).dateManuallySet = true;
+      }
       const post = await storage.updatePost(req.params.id, validatedData);
       res.json(post);
     } catch (error) {

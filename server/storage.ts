@@ -1,6 +1,6 @@
-import { users, posts, taggedPhotos, postingSettings, instagramCredentials, photoFolders, type User, type InsertUser, type Post, type InsertPost, type TaggedPhoto, type InsertTaggedPhoto, type PostingSettings, type InstagramCredentials, type InsertInstagramCredentials, type PhotoFolder, type InsertPhotoFolder } from "@shared/schema";
+import { users, posts, taggedPhotos, postingSettings, instagramCredentials, photoFolders, photoBatches, photoBatchItems, similarGroups, similarGroupItems, type User, type InsertUser, type Post, type InsertPost, type TaggedPhoto, type InsertTaggedPhoto, type PostingSettings, type InstagramCredentials, type InsertInstagramCredentials, type PhotoFolder, type InsertPhotoFolder, type PhotoBatch, type PhotoBatchItem, type SimilarGroup, type SimilarGroupItem } from "@shared/schema";
 import { db } from "./db";
-import { eq, asc, and, max, desc } from "drizzle-orm";
+import { eq, asc, and, max, desc, inArray } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -50,6 +50,20 @@ export interface IStorage {
   deletePhotoFolder(id: string): Promise<boolean>;
   getPhotosInFolder(folderId: string): Promise<TaggedPhoto[]>;
   getPhotosWithoutFolder(): Promise<TaggedPhoto[]>;
+
+  // Photo Batch operations for similarity detection
+  createPhotoBatch(data: { userId: string; folderId?: string | null; strictness?: string; totalPhotos: number }): Promise<PhotoBatch>;
+  getPhotoBatch(id: string): Promise<PhotoBatch | undefined>;
+  updatePhotoBatchStatus(id: string, status: string): Promise<PhotoBatch | undefined>;
+  createBatchItem(data: { batchId: string; filename: string; originalFilename: string; storagePath: string; photoUrl: string; hash?: string | null; tags?: string[] | null }): Promise<PhotoBatchItem>;
+  getBatchItems(batchId: string): Promise<PhotoBatchItem[]>;
+  updateBatchItemHash(id: string, hash: string): Promise<void>;
+  updateBatchItemStatus(id: string, status: string): Promise<void>;
+  createSimilarGroup(batchId: string): Promise<SimilarGroup>;
+  createSimilarGroupItem(data: { groupId: string; batchItemId: string; distance: number }): Promise<SimilarGroupItem>;
+  getSimilarGroups(batchId: string): Promise<(SimilarGroup & { items: (SimilarGroupItem & { batchItem: PhotoBatchItem })[] })[]>;
+  updateSimilarGroupItemSelection(groupId: string, batchItemId: string, isSelected: boolean): Promise<void>;
+  deleteBatchData(batchId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -319,6 +333,94 @@ export class DatabaseStorage implements IStorage {
   async getPhotosWithoutFolder(): Promise<TaggedPhoto[]> {
     const { isNull } = await import("drizzle-orm");
     return db.select().from(taggedPhotos).where(isNull(taggedPhotos.folderId)).orderBy(desc(taggedPhotos.createdAt));
+  }
+
+  // Photo Batch operations
+  async createPhotoBatch(data: { userId: string; folderId?: string | null; strictness?: string; totalPhotos: number }): Promise<PhotoBatch> {
+    const [batch] = await db.insert(photoBatches).values({
+      userId: data.userId,
+      folderId: data.folderId || null,
+      strictness: data.strictness || "medium",
+      totalPhotos: data.totalPhotos,
+      status: "uploading",
+    }).returning();
+    return batch;
+  }
+
+  async getPhotoBatch(id: string): Promise<PhotoBatch | undefined> {
+    const [batch] = await db.select().from(photoBatches).where(eq(photoBatches.id, id));
+    return batch || undefined;
+  }
+
+  async updatePhotoBatchStatus(id: string, status: string): Promise<PhotoBatch | undefined> {
+    const [batch] = await db.update(photoBatches).set({ status }).where(eq(photoBatches.id, id)).returning();
+    return batch || undefined;
+  }
+
+  async createBatchItem(data: { batchId: string; filename: string; originalFilename: string; storagePath: string; photoUrl: string; hash?: string | null; tags?: string[] | null }): Promise<PhotoBatchItem> {
+    const [item] = await db.insert(photoBatchItems).values(data).returning();
+    return item;
+  }
+
+  async getBatchItems(batchId: string): Promise<PhotoBatchItem[]> {
+    return db.select().from(photoBatchItems).where(eq(photoBatchItems.batchId, batchId));
+  }
+
+  async updateBatchItemHash(id: string, hash: string): Promise<void> {
+    await db.update(photoBatchItems).set({ hash }).where(eq(photoBatchItems.id, id));
+  }
+
+  async updateBatchItemStatus(id: string, status: string): Promise<void> {
+    await db.update(photoBatchItems).set({ status }).where(eq(photoBatchItems.id, id));
+  }
+
+  async createSimilarGroup(batchId: string): Promise<SimilarGroup> {
+    const [group] = await db.insert(similarGroups).values({ batchId }).returning();
+    return group;
+  }
+
+  async createSimilarGroupItem(data: { groupId: string; batchItemId: string; distance: number }): Promise<SimilarGroupItem> {
+    const [item] = await db.insert(similarGroupItems).values(data).returning();
+    return item;
+  }
+
+  async getSimilarGroups(batchId: string): Promise<(SimilarGroup & { items: (SimilarGroupItem & { batchItem: PhotoBatchItem })[] })[]> {
+    const groups = await db.select().from(similarGroups).where(eq(similarGroups.batchId, batchId));
+    
+    const result = [];
+    for (const group of groups) {
+      const items = await db
+        .select()
+        .from(similarGroupItems)
+        .innerJoin(photoBatchItems, eq(similarGroupItems.batchItemId, photoBatchItems.id))
+        .where(eq(similarGroupItems.groupId, group.id));
+      
+      result.push({
+        ...group,
+        items: items.map(row => ({
+          ...row.similar_group_items,
+          batchItem: row.photo_batch_items,
+        })),
+      });
+    }
+    return result;
+  }
+
+  async updateSimilarGroupItemSelection(groupId: string, batchItemId: string, isSelected: boolean): Promise<void> {
+    await db
+      .update(similarGroupItems)
+      .set({ isSelected })
+      .where(and(eq(similarGroupItems.groupId, groupId), eq(similarGroupItems.batchItemId, batchItemId)));
+  }
+
+  async deleteBatchData(batchId: string): Promise<void> {
+    const groups = await db.select().from(similarGroups).where(eq(similarGroups.batchId, batchId));
+    for (const group of groups) {
+      await db.delete(similarGroupItems).where(eq(similarGroupItems.groupId, group.id));
+    }
+    await db.delete(similarGroups).where(eq(similarGroups.batchId, batchId));
+    await db.delete(photoBatchItems).where(eq(photoBatchItems.batchId, batchId));
+    await db.delete(photoBatches).where(eq(photoBatches.id, batchId));
   }
 }
 

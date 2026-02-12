@@ -172,16 +172,25 @@ PostgreSQL database required, accessed via connection string in `DATABASE_URL` e
 | `PORT` | No | Server port (defaults to 5000) |
 | `N8N_POSTING_WEBHOOK_URL` | No | Webhook URL for n8n posting integration |
 
-### Photo Uploads
+### Photo Uploads & Similarity Detection
 
-Photos can be uploaded directly through the Tagged Photos page. Uploaded files are:
-- Stored locally in the `/uploads` directory
-- Automatically analyzed and tagged using OpenAI Vision API (gpt-4o model)
-- Accessible via `/uploads/{filename}` URL
+Photos can be uploaded through the Tagged Photos page using batch upload. The upload flow:
+1. User selects photos and clicks Upload
+2. Photos are uploaded to object storage, AI-tagged (OpenAI Vision), and perceptually hashed (dHash)
+3. Similar photos are detected using Hamming distance on perceptual hashes
+4. If similar groups found → SimilarPhotoReviewModal opens for user to pick best from each group
+5. If no duplicates → all photos auto-finalize to the library
+
+**Similarity Detection**: Uses dHash (difference hash) with configurable strictness:
+- High (threshold=5): Only near-identical photos
+- Medium (threshold=10): Similar compositions/scenes
+- Low (threshold=15): Loosely similar photos
+
+**Database Tables**: `photo_batches`, `photo_batch_items`, `similar_groups`, `similar_group_items`
+**Key Files**: `server/similarity.ts`, `client/src/components/SimilarPhotoReviewModal.tsx`, `client/src/components/PhotoUploadModal.tsx`
 
 **Supported formats:** JPG, JPEG, PNG, WebP
 **Maximum file size:** 10MB per file
-**Concurrent uploads:** Up to 3 files processed simultaneously
 
 To run locally with photo tagging:
 ```bash

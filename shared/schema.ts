@@ -126,6 +126,57 @@ export type InsertTaggedPhoto = z.infer<typeof insertTaggedPhotoSchema>;
 export type UpdateTaggedPhoto = z.infer<typeof updateTaggedPhotoSchema>;
 export type TaggedPhoto = typeof taggedPhotos.$inferSelect;
 
+// Photo Batch tables for similarity detection
+export const batchStatusValues = ["uploading", "processing", "needs_review", "complete"] as const;
+export type BatchStatus = typeof batchStatusValues[number];
+
+export const photoBatches = pgTable("photo_batches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  folderId: varchar("folder_id").references(() => photoFolders.id),
+  status: text("status").notNull().default("uploading"),
+  strictness: text("strictness").notNull().default("medium"),
+  totalPhotos: integer("total_photos").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export type PhotoBatch = typeof photoBatches.$inferSelect;
+
+export const batchItemStatusValues = ["pending", "kept", "discarded"] as const;
+
+export const photoBatchItems = pgTable("photo_batch_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  batchId: varchar("batch_id").references(() => photoBatches.id).notNull(),
+  filename: text("filename").notNull(),
+  originalFilename: text("original_filename").notNull(),
+  storagePath: text("storage_path").notNull(),
+  photoUrl: text("photo_url").notNull(),
+  hash: text("hash"),
+  tags: text("tags").array(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export type PhotoBatchItem = typeof photoBatchItems.$inferSelect;
+
+export const similarGroups = pgTable("similar_groups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  batchId: varchar("batch_id").references(() => photoBatches.id).notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export type SimilarGroup = typeof similarGroups.$inferSelect;
+
+export const similarGroupItems = pgTable("similar_group_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").references(() => similarGroups.id).notNull(),
+  batchItemId: varchar("batch_item_id").references(() => photoBatchItems.id).notNull(),
+  distance: integer("distance").notNull().default(0),
+  isSelected: boolean("is_selected").notNull().default(false),
+});
+
+export type SimilarGroupItem = typeof similarGroupItems.$inferSelect;
+
 // Posting Settings table
 export const postingSettings = pgTable("posting_settings", {
   id: varchar("id").primaryKey().default("default"),

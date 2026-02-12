@@ -1,0 +1,93 @@
+You are building a feature for my app “Flowtech Social Media Manager”.
+
+GOAL
+When a user uploads a batch of photos (e.g., 20–200), detect sets of “extremely similar” photos (burst shots / tiny hand movement / same pose), then show a modal pop-up wizard that forces the user to pick the best photo from each similar set BEFORE the photos are added to the main photo library. The chosen photos are kept; the others are discarded (or stored as rejected with metadata).
+
+IMPORTANT UX
+- After upload completes, if there are any similar sets, open a modal titled “Choose the best from similar photos”.
+- The modal shows a vertical list of “similar groups” (one row per group).
+- Each row contains a fast horizontal flick/scroll gallery (filmstrip) of thumbnails for that group.
+- User selects ONE photo to keep (radio-style) OR optionally “keep multiple” toggle per group.
+- After choosing, they click “Next group” or use keyboard shortcuts:
+  - Arrow keys to move between photos in the current group
+  - Enter to confirm selection
+  - J/K to move group down/up
+- Progress indicator: “Group 3 of 9”.
+- Primary CTA: “Keep selected & discard others”
+- Secondary: “Skip for now” (marks unresolved and prevents publish until resolved) OR “Keep all” (only if user explicitly chooses this).
+- Only after the modal is completed should chosen photos be inserted into the photo library table and made available for captioning/post scheduling.
+
+DETECTION / GROUPING REQUIREMENTS
+We need robust similarity detection, not just filename or timestamp.
+Implement BOTH:
+1) Visual similarity
+2) Tag/metadata similarity (as a fallback or a booster)
+
+Visual similarity approach (choose best available depending on environment):
+Option A (preferred): image embeddings (CLIP) + cosine similarity + clustering
+- Create an embedding vector per image.
+- Build similarity graph: connect i↔j if cosine similarity >= THRESHOLD_HIGH (e.g., 0.93).
+- Find connected components to form groups.
+Option B (simpler/faster): perceptual hash (pHash/dHash) + Hamming distance
+- Group images where hamming_distance <= 6 (tuneable).
+Use whichever is easiest to implement in Replit without GPU. If CLIP is too heavy, use pHash.
+
+Tag/metadata similarity:
+- If I have tags per image (user-entered or AI-generated), compute Jaccard similarity or cosine similarity on bag-of-words.
+- If tag similarity is very high (e.g., >= 0.8) AND timestamps are close (e.g., within 30 seconds), treat as candidate similar; then confirm with pHash distance.
+
+Add an adjustable setting:
+- Similarity strictness slider (Low/Medium/High) that maps to thresholds:
+  - High strictness: fewer groups (only near-identical)
+  - Low strictness: more aggressive grouping
+
+DATA MODEL
+Assume we have:
+- photos table: id, user_id, file_url, created_at, tags (json/text), status (PENDING_REVIEW | ACTIVE | REJECTED), batch_id
+- photo_batches table: id, user_id, created_at, status (UPLOADED | NEEDS_DEDUPE_REVIEW | COMPLETE)
+- similar_groups table: id, batch_id, created_at
+- similar_group_items table: group_id, photo_id, similarity_score, is_selected (bool)
+
+FLOW
+1) User uploads photos → store files → create photo records with status=PENDING_REVIEW and batch_id set.
+2) Run similarity detection on that batch → create similar_groups and items.
+3) If any group has >=2 items, set batch status=NEEDS_DEDUPE_REVIEW and return groups to frontend.
+4) Frontend opens the modal wizard with groups.
+5) User picks selected photo(s) per group → submit selections.
+6) Backend marks:
+   - selected photos: status=ACTIVE
+   - non-selected photos: status=REJECTED (or delete files if configured)
+7) For photos not in any group, automatically mark status=ACTIVE.
+8) Batch status becomes COMPLETE.
+
+UI IMPLEMENTATION DETAILS
+- Build a reusable <SimilarPhotoReviewModal /> component.
+- It receives groups with photo thumbs, and supports:
+  - fast thumbnail rendering (virtualized list if groups large)
+  - “open full preview” on click
+  - keyboard shortcuts
+  - sticky footer with CTAs
+- On confirm, call POST /api/batches/{batchId}/resolve-similar with selected photo ids per group.
+- Ensure it can handle 100+ photos without lag.
+
+PERFORMANCE
+- Generate thumbnails server-side on upload (or use browser image resizing) so filmstrip loads quickly.
+- Similarity detection should run async but the user experience should be:
+  - show “Processing photos…” state after upload
+  - when detection results are ready, open the modal
+- If detection isn’t ready within a few seconds, poll /api/batches/{batchId}/status.
+
+DELIVERABLES
+1) Working feature end-to-end in the Replit project:
+   - API routes
+   - DB schema/migrations
+   - Similarity detection module
+   - Modal UI component + integration on upload page
+2) A short README section:
+   - how similarity works
+   - how to tune thresholds
+   - where to change strictness slider mapping
+3) Seed/demo mode:
+   - allow uploading a folder of images and show the modal with at least 2–3 groups in testing.
+
+Make reasonable assumptions if needed, but keep the solution practical and shippable. Use TypeScript if the template supports it. Keep code clean and commented.

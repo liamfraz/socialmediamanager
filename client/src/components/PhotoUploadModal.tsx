@@ -13,14 +13,15 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import SimilarPhotoReviewModal from "./SimilarPhotoReviewModal";
 
-interface FileUploadStatus {
+interface FilePreview {
   file: File;
   id: string;
-  status: "pending" | "uploading" | "tagging" | "done" | "error";
-  progress: number;
+  valid: boolean;
   error?: string;
-  photo?: any;
 }
 
 interface PhotoUploadModalProps {
@@ -32,8 +33,9 @@ interface PhotoUploadModalProps {
 }
 
 const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_CONCURRENT_UPLOADS = 3;
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+type UploadPhase = "select" | "uploading" | "review" | "done";
 
 export default function PhotoUploadModal({
   open,
@@ -42,11 +44,19 @@ export default function PhotoUploadModal({
   defaultFolderName = "",
   folderId,
 }: PhotoUploadModalProps) {
-  const [files, setFiles] = useState<FileUploadStatus[]>([]);
+  const { toast } = useToast();
+  const [files, setFiles] = useState<FilePreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [phase, setPhase] = useState<UploadPhase>("select");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState("");
   const [folderName, setFolderName] = useState(defaultFolderName);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [reviewBatchId, setReviewBatchId] = useState<string | null>(null);
+  const [reviewGroups, setReviewGroups] = useState<any[]>([]);
+  const [reviewStrictness, setReviewStrictness] = useState("medium");
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   const validateFile = (file: File): string | null => {
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -60,18 +70,16 @@ export default function PhotoUploadModal({
 
   const addFiles = useCallback((newFiles: FileList | File[]) => {
     const fileArray = Array.from(newFiles);
-    const validatedFiles: FileUploadStatus[] = fileArray.map((file) => {
+    const previews: FilePreview[] = fileArray.map((file) => {
       const error = validateFile(file);
       return {
         file,
         id: `${file.name}-${Date.now()}-${Math.random()}`,
-        status: error ? "error" : "pending",
-        progress: 0,
+        valid: !error,
         error: error || undefined,
       };
     });
-
-    setFiles((prev) => [...prev, ...validatedFiles]);
+    setFiles((prev) => [...prev, ...previews]);
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -91,7 +99,6 @@ export default function PhotoUploadModal({
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
-
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         addFiles(e.dataTransfer.files);
       }
@@ -104,7 +111,6 @@ export default function PhotoUploadModal({
       if (e.target.files && e.target.files.length > 0) {
         addFiles(e.target.files);
       }
-      // Reset input so the same file can be selected again
       e.target.value = "";
     },
     [addFiles]
@@ -115,310 +121,264 @@ export default function PhotoUploadModal({
   }, []);
 
   const uploadFiles = async () => {
-    const pendingFiles = files.filter((f) => f.status === "pending");
-    if (pendingFiles.length === 0) return;
+    const validFiles = files.filter((f) => f.valid);
+    if (validFiles.length === 0) return;
 
-    setIsUploading(true);
+    setPhase("uploading");
+    setUploadProgress(10);
+    setUploadStatus("Preparing upload...");
 
-    // If we have multiple files and a folder name, create folder once and use for all
-    let targetFolderId = folderId;
-
-    // Process files with concurrency limit
-    const queue = [...pendingFiles];
-    const inProgress: Promise<void>[] = [];
-
-    const processFile = async (fileStatus: FileUploadStatus, isFirst: boolean) => {
-      const { file, id } = fileStatus;
-
-      // Update status to uploading
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === id ? { ...f, status: "uploading", progress: 10 } : f
-        )
-      );
-
-      try {
-        const formData = new FormData();
-        formData.append("photos", file);
-        
-        // Add folder info - only create folder on first file upload
-        if (targetFolderId) {
-          formData.append("folderId", targetFolderId);
-        } else if (isFirst && folderName.trim()) {
-          formData.append("folderName", folderName.trim());
-        } else if (targetFolderId) {
-          formData.append("folderId", targetFolderId);
-        }
-
-        // Update progress during upload
-        setFiles((prev) =>
-          prev.map((f) => (f.id === id ? { ...f, progress: 30 } : f))
-        );
-
-        const response = await fetch("/api/photos/upload-and-tag", {
-          method: "POST",
-          body: formData,
-        });
-
-        // Update to tagging status
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === id ? { ...f, status: "tagging", progress: 60 } : f
-          )
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `Upload failed: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const result = data.results?.[0];
-
-        if (result?.success) {
-          // Capture folderId from first upload for subsequent uploads
-          if (data.folderId && !targetFolderId) {
-            targetFolderId = data.folderId;
-          }
-          setFiles((prev) =>
-            prev.map((f) =>
-              f.id === id
-                ? { ...f, status: "done", progress: 100, photo: result.photo }
-                : f
-            )
-          );
-        } else {
-          throw new Error(result?.error || "Upload failed");
-        }
-      } catch (error) {
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === id
-              ? {
-                  ...f,
-                  status: "error",
-                  progress: 0,
-                  error: error instanceof Error ? error.message : "Upload failed",
-                }
-              : f
-          )
-        );
+    try {
+      const formData = new FormData();
+      for (const f of validFiles) {
+        formData.append("photos", f.file);
       }
-    };
 
-    // Process files sequentially to properly handle folder creation
-    let isFirst = true;
-    for (const fileStatus of pendingFiles) {
-      await processFile(fileStatus, isFirst);
-      isFirst = false;
+      if (folderId) {
+        formData.append("folderId", folderId);
+      } else if (folderName.trim()) {
+        formData.append("folderName", folderName.trim());
+      }
+
+      formData.append("strictness", "medium");
+
+      setUploadProgress(30);
+      setUploadStatus(`Uploading ${validFiles.length} photo(s)...`);
+
+      const response = await fetch("/api/photo-batches/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      setUploadProgress(70);
+      setUploadStatus("Analyzing for duplicates...");
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Upload failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      setUploadProgress(100);
+
+      if (data.status === "needs_review" && data.groups && data.groups.length > 0) {
+        setReviewBatchId(data.batchId);
+        setReviewGroups(data.groups);
+        setReviewStrictness("medium");
+        setPhase("review");
+        setShowReviewModal(true);
+      } else {
+        setPhase("done");
+        setUploadStatus(`${data.totalPhotos} photo(s) added to your library.`);
+        queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/photo-folders"] });
+        onUploadComplete();
+        toast({
+          title: "Upload complete",
+          description: `${data.totalPhotos} photo(s) added successfully.`,
+        });
+      }
+    } catch (error) {
+      setPhase("select");
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Something went wrong",
+        variant: "destructive",
+      });
     }
+  };
 
-    setIsUploading(false);
+  const handleReviewComplete = (result: { keptCount: number; discardedCount: number }) => {
+    setShowReviewModal(false);
+    setPhase("done");
+    setUploadStatus(`${result.keptCount} photo(s) kept, ${result.discardedCount} discarded.`);
     onUploadComplete();
   };
 
   const handleClose = () => {
-    if (!isUploading) {
-      setFiles([]);
-      setFolderName(defaultFolderName);
-      onOpenChange(false);
-    }
+    if (phase === "uploading") return;
+    setFiles([]);
+    setFolderName(defaultFolderName);
+    setPhase("select");
+    setUploadProgress(0);
+    setUploadStatus("");
+    setReviewBatchId(null);
+    setReviewGroups([]);
+    setShowReviewModal(false);
+    onOpenChange(false);
   };
 
-  const pendingCount = files.filter((f) => f.status === "pending").length;
-  const doneCount = files.filter((f) => f.status === "done").length;
-  const errorCount = files.filter((f) => f.status === "error").length;
-
-  const getStatusIcon = (status: FileUploadStatus["status"]) => {
-    switch (status) {
-      case "pending":
-        return <ImageIcon className="h-4 w-4 text-muted-foreground" />;
-      case "uploading":
-        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
-      case "tagging":
-        return <Loader2 className="h-4 w-4 text-purple-500 animate-spin" />;
-      case "done":
-        return <Check className="h-4 w-4 text-green-500" />;
-      case "error":
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
-    }
-  };
-
-  const getStatusText = (status: FileUploadStatus["status"]) => {
-    switch (status) {
-      case "pending":
-        return "Ready";
-      case "uploading":
-        return "Uploading...";
-      case "tagging":
-        return "AI tagging...";
-      case "done":
-        return "Done";
-      case "error":
-        return "Failed";
-    }
-  };
+  const validCount = files.filter((f) => f.valid).length;
+  const errorCount = files.filter((f) => !f.valid).length;
+  const isUploading = phase === "uploading";
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Upload Photos</DialogTitle>
-          <DialogDescription>
-            Drag and drop photos or click to browse. Photos will be automatically tagged using AI.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open && !showReviewModal} onOpenChange={(v) => { if (!isUploading) { if (!v) handleClose(); } }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Upload Photos</DialogTitle>
+            <DialogDescription>
+              {phase === "done"
+                ? "Upload complete"
+                : "Drag and drop photos or click to browse. Similar photos will be detected automatically."}
+            </DialogDescription>
+          </DialogHeader>
 
-        {/* Folder name input */}
-        {!folderId && (
-          <div className="space-y-2">
-            <Label htmlFor="folder-name" className="flex items-center gap-2">
-              <Folder className="h-4 w-4" />
-              Folder Name (optional)
-            </Label>
-            <Input
-              id="folder-name"
-              placeholder="e.g., Wedding Reception, Beach Portraits"
-              value={folderName}
-              onChange={(e) => setFolderName(e.target.value)}
-              disabled={isUploading}
-              data-testid="input-folder-name"
-            />
-            <p className="text-xs text-muted-foreground">
-              Group these photos into a folder for easier organization
-            </p>
-          </div>
-        )}
-
-        {/* Drop zone */}
-        <div
-          className={cn(
-            "relative border-2 border-dashed rounded-lg p-8 transition-colors",
-            isDragging
-              ? "border-primary bg-primary/5"
-              : "border-muted-foreground/25 hover:border-muted-foreground/50",
-            isUploading && "pointer-events-none opacity-50"
-          )}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/jpg,image/png,image/webp"
-            multiple
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            onChange={handleFileSelect}
-            disabled={isUploading}
-          />
-          <div className="flex flex-col items-center gap-2 text-center">
-            <Upload className="h-10 w-10 text-muted-foreground" />
-            <div>
-              <p className="font-medium">Drop photos here or click to browse</p>
-              <p className="text-sm text-muted-foreground">
-                JPG, PNG, WebP up to 10MB each
+          {phase === "done" ? (
+            <div className="py-8 text-center space-y-3">
+              <div className="mx-auto w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <p className="text-sm text-muted-foreground">{uploadStatus}</p>
+            </div>
+          ) : phase === "uploading" ? (
+            <div className="py-8 space-y-4">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                <p className="text-sm font-medium">{uploadStatus}</p>
+              </div>
+              <Progress value={uploadProgress} className="h-2" />
+              <p className="text-xs text-muted-foreground text-center">
+                This may take a moment for AI tagging and similarity analysis
               </p>
             </div>
-          </div>
-        </div>
-
-        {/* File list */}
-        {files.length > 0 && (
-          <div className="max-h-64 overflow-y-auto space-y-2">
-            {files.map((fileStatus) => (
-              <div
-                key={fileStatus.id}
-                className="flex items-center gap-3 p-3 rounded-lg border bg-card"
-              >
-                {/* Thumbnail */}
-                <div className="h-10 w-10 rounded bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                  <img
-                    src={URL.createObjectURL(fileStatus.file)}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    onLoad={(e) => {
-                      // Revoke object URL after load to free memory
-                      URL.revokeObjectURL((e.target as HTMLImageElement).src);
-                    }}
+          ) : (
+            <>
+              {!folderId && (
+                <div className="space-y-2">
+                  <Label htmlFor="folder-name" className="flex items-center gap-2">
+                    <Folder className="h-4 w-4" />
+                    Folder Name (optional)
+                  </Label>
+                  <Input
+                    id="folder-name"
+                    placeholder="e.g., Wedding Reception, Beach Portraits"
+                    value={folderName}
+                    onChange={(e) => setFolderName(e.target.value)}
+                    data-testid="input-folder-name"
                   />
-                </div>
-
-                {/* File info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {fileStatus.file.name}
+                  <p className="text-xs text-muted-foreground">
+                    Group these photos into a folder for easier organization
                   </p>
-                  <div className="flex items-center gap-2">
-                    {getStatusIcon(fileStatus.status)}
-                    <span
-                      className={cn(
-                        "text-xs",
-                        fileStatus.status === "error"
-                          ? "text-red-500"
-                          : "text-muted-foreground"
-                      )}
-                    >
-                      {fileStatus.error || getStatusText(fileStatus.status)}
-                    </span>
+                </div>
+              )}
+
+              <div
+                className={cn(
+                  "relative border-2 border-dashed rounded-lg p-8 transition-colors",
+                  isDragging
+                    ? "border-primary bg-primary/5"
+                    : "border-muted-foreground/25 hover:border-muted-foreground/50"
+                )}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  multiple
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  onChange={handleFileSelect}
+                />
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <Upload className="h-10 w-10 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">Drop photos here or click to browse</p>
+                    <p className="text-sm text-muted-foreground">
+                      JPG, PNG, WebP up to 10MB each
+                    </p>
                   </div>
-                  {(fileStatus.status === "uploading" ||
-                    fileStatus.status === "tagging") && (
-                    <Progress value={fileStatus.progress} className="h-1 mt-1" />
+                </div>
+              </div>
+
+              {files.length > 0 && (
+                <div className="max-h-52 overflow-y-auto space-y-1">
+                  {files.map((fp) => (
+                    <div
+                      key={fp.id}
+                      className="flex items-center gap-3 p-2 rounded-lg border bg-card"
+                    >
+                      <div className="h-8 w-8 rounded bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <img
+                          src={URL.createObjectURL(fp.file)}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          onLoad={(e) => {
+                            URL.revokeObjectURL((e.target as HTMLImageElement).src);
+                          }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{fp.file.name}</p>
+                        {fp.error && (
+                          <div className="flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3 text-red-500" />
+                            <span className="text-xs text-red-500">{fp.error}</span>
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeFile(fp.id)}
+                        data-testid={`button-remove-file-${fp.id}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {files.length > 0 && (
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <span>{validCount} valid file(s)</span>
+                  {errorCount > 0 && (
+                    <span className="text-red-500">{errorCount} invalid</span>
                   )}
                 </div>
+              )}
+            </>
+          )}
 
-                {/* Remove button */}
-                {!isUploading && fileStatus.status !== "done" && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 flex-shrink-0"
-                    onClick={() => removeFile(fileStatus.id)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Summary */}
-        {files.length > 0 && (
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span>{files.length} file(s) selected</span>
-            {doneCount > 0 && (
-              <span className="text-green-600">{doneCount} uploaded</span>
-            )}
-            {errorCount > 0 && (
-              <span className="text-red-500">{errorCount} failed</span>
-            )}
-          </div>
-        )}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={isUploading}>
-            {doneCount > 0 && pendingCount === 0 ? "Close" : "Cancel"}
-          </Button>
-          <Button
-            onClick={uploadFiles}
-            disabled={isUploading || pendingCount === 0}
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Uploading...
-              </>
-            ) : (
-              <>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleClose} disabled={isUploading}>
+              {phase === "done" ? "Close" : "Cancel"}
+            </Button>
+            {phase === "select" && (
+              <Button
+                onClick={uploadFiles}
+                disabled={validCount === 0}
+                data-testid="button-upload-photos"
+              >
                 <Upload className="mr-2 h-4 w-4" />
-                Upload {pendingCount > 0 ? `(${pendingCount})` : ""}
-              </>
+                Upload {validCount > 0 ? `(${validCount})` : ""}
+              </Button>
             )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {showReviewModal && reviewBatchId && (
+        <SimilarPhotoReviewModal
+          open={showReviewModal}
+          onOpenChange={(v) => {
+            setShowReviewModal(v);
+            if (!v) {
+              handleClose();
+            }
+          }}
+          batchId={reviewBatchId}
+          groups={reviewGroups}
+          onComplete={handleReviewComplete}
+          strictness={reviewStrictness}
+          onStrictnessChange={setReviewStrictness}
+        />
+      )}
+    </>
   );
 }

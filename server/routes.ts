@@ -16,6 +16,7 @@ import {
   postToInstagram,
 } from "./instagram";
 import { ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
+import { computeDHash, findSimilarGroups, getThresholdForStrictness } from "./similarity";
 
 // Initialize object storage service
 const objectStorageService = new ObjectStorageService();
@@ -1228,6 +1229,394 @@ export async function registerRoutes(
       return res.status(400).json({ error: err.message });
     }
     next(err);
+  });
+
+  // Batch upload with similarity detection
+  app.post("/api/photos/batch-upload", upload.array("photos", 200), async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "No files uploaded" });
+      }
+
+      const { folderId, folderName, strictness = "medium" } = req.body;
+
+      let targetFolderId: string | null = folderId || null;
+      if (!targetFolderId && folderName && typeof folderName === "string" && folderName.trim()) {
+        const folder = await storage.createPhotoFolder({ name: folderName.trim(), userId });
+        targetFolderId = folder.id;
+      }
+
+      const batch = await storage.createPhotoBatch({
+        userId,
+        folderId: targetFolderId,
+        strictness,
+        totalPhotos: files.length,
+      });
+
+      console.log(`Created batch ${batch.id} for ${files.length} photos (strictness: ${strictness})`);
+
+      // Process uploads and compute hashes
+      const batchItems = [];
+      for (const file of files) {
+        try {
+          const filePath = file.path;
+
+          // Analyze image with OpenAI Vision
+          let tags: string[] = [];
+          if (isOpenAIConfigured()) {
+            const taggingResult = await analyzeImageForTags(filePath);
+            if (taggingResult.success) {
+              tags = taggingResult.tags;
+            }
+          }
+
+          // Upload to object storage
+          let photoUrl: string;
+          let storagePath: string;
+          try {
+            const fileBuffer = fs.readFileSync(filePath);
+            const uploadResult = await objectStorageService.uploadFile(
+              fileBuffer,
+              file.originalname,
+              file.mimetype
+            );
+            photoUrl = uploadResult.objectPath;
+            storagePath = uploadResult.objectPath;
+            try { fs.unlinkSync(filePath); } catch {}
+          } catch {
+            photoUrl = `/uploads/${file.filename}`;
+            storagePath = filePath;
+          }
+
+          // Compute perceptual hash from the file we already have
+          let hash: string | null = null;
+          try {
+            let hashBuffer: Buffer;
+            if (storagePath.startsWith("/objects/")) {
+              const objFile = await objectStorageService.getFileForPath(storagePath);
+              if (objFile) {
+                const [downloadedBuffer] = await (objFile as any).download();
+                hashBuffer = downloadedBuffer;
+              } else {
+                throw new Error("Object not found in storage");
+              }
+            } else {
+              const localPath = storagePath.startsWith("/uploads/")
+                ? path.join(process.cwd(), storagePath)
+                : storagePath;
+              hashBuffer = fs.readFileSync(localPath);
+            }
+            const hashResult = await computeDHash(hashBuffer);
+            if (hashResult.success) {
+              hash = hashResult.hash;
+            }
+          } catch (hashErr) {
+            console.warn(`Hash computation failed for ${file.originalname}:`, hashErr);
+          }
+
+          const item = await storage.createBatchItem({
+            batchId: batch.id,
+            filename: file.filename,
+            originalFilename: file.originalname,
+            storagePath,
+            photoUrl,
+            hash,
+            tags: tags.length > 0 ? tags : null,
+          });
+          batchItems.push(item);
+        } catch (fileError) {
+          console.error(`Error processing ${file.originalname}:`, fileError);
+          try { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); } catch {}
+        }
+      }
+
+      // Run similarity detection
+      const threshold = getThresholdForStrictness(strictness);
+      const hashItems = batchItems
+        .filter(item => item.hash)
+        .map(item => ({ id: item.id, hash: item.hash! }));
+
+      const simGroups = findSimilarGroups(hashItems, threshold);
+
+      if (simGroups.length > 0) {
+        // Create similar groups in DB
+        for (const group of simGroups) {
+          const dbGroup = await storage.createSimilarGroup(batch.id);
+          for (const member of group.items) {
+            await storage.createSimilarGroupItem({
+              groupId: dbGroup.id,
+              batchItemId: member.itemId,
+              distance: member.distance,
+            });
+          }
+        }
+        await storage.updatePhotoBatchStatus(batch.id, "needs_review");
+        console.log(`Batch ${batch.id}: Found ${simGroups.length} similar groups, needs review`);
+      } else {
+        // No similar photos - auto-finalize all into tagged_photos
+        for (const item of batchItems) {
+          await storage.createTaggedPhoto({
+            photoId: item.filename,
+            photoUrl: item.photoUrl,
+            description: item.originalFilename,
+            tags: item.tags,
+            originalFilename: item.originalFilename,
+            storagePath: item.storagePath,
+            userId,
+            folderId: targetFolderId,
+          });
+          await storage.updateBatchItemStatus(item.id, "kept");
+        }
+        await storage.updatePhotoBatchStatus(batch.id, "complete");
+        console.log(`Batch ${batch.id}: No similar photos, auto-finalized ${batchItems.length} photos`);
+      }
+
+      const groups = await storage.getSimilarGroups(batch.id);
+
+      res.json({
+        batchId: batch.id,
+        status: simGroups.length > 0 ? "needs_review" : "complete",
+        totalPhotos: batchItems.length,
+        similarGroups: groups.length,
+        folderId: targetFolderId,
+        groups: groups.map(g => ({
+          id: g.id,
+          items: g.items.map(item => ({
+            id: item.batchItemId,
+            photoUrl: item.batchItem.photoUrl,
+            originalFilename: item.batchItem.originalFilename,
+            distance: item.distance,
+            isSelected: item.isSelected,
+          })),
+        })),
+      });
+    } catch (error) {
+      console.error("Batch upload error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Batch upload failed" });
+    }
+  });
+
+  // Get batch status with similar groups
+  app.get("/api/photo-batches/:batchId", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+      const batch = await storage.getPhotoBatch(req.params.batchId);
+      if (!batch || batch.userId !== userId) {
+        return res.status(404).json({ error: "Batch not found" });
+      }
+
+      const groups = await storage.getSimilarGroups(batch.id);
+      const items = await storage.getBatchItems(batch.id);
+
+      res.json({
+        ...batch,
+        groups: groups.map(g => ({
+          id: g.id,
+          items: g.items.map(item => ({
+            id: item.batchItemId,
+            photoUrl: item.batchItem.photoUrl,
+            originalFilename: item.batchItem.originalFilename,
+            distance: item.distance,
+            isSelected: item.isSelected,
+            tags: item.batchItem.tags,
+          })),
+        })),
+        items: items.map(i => ({
+          id: i.id,
+          photoUrl: i.photoUrl,
+          originalFilename: i.originalFilename,
+          status: i.status,
+        })),
+      });
+    } catch (error) {
+      console.error("Error fetching batch:", error);
+      res.status(500).json({ error: "Failed to fetch batch" });
+    }
+  });
+
+  // Resolve similar groups - user picks which photos to keep
+  app.post("/api/photo-batches/:batchId/resolve", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+      const batch = await storage.getPhotoBatch(req.params.batchId);
+      if (!batch || batch.userId !== userId) {
+        return res.status(404).json({ error: "Batch not found" });
+      }
+
+      const { selections } = req.body;
+      if (!selections || !Array.isArray(selections)) {
+        return res.status(400).json({ error: "selections array is required" });
+      }
+
+      // selections format: [{ groupId: string, selectedItemIds: string[] }]
+      const selectedItemIds = new Set<string>();
+      const discardedItemIds = new Set<string>();
+
+      const groups = await storage.getSimilarGroups(batch.id);
+      for (const group of groups) {
+        const sel = selections.find((s: any) => s.groupId === group.id);
+        const keepIds = sel ? new Set(sel.selectedItemIds) : new Set<string>();
+
+        for (const item of group.items) {
+          if (keepIds.has(item.batchItemId)) {
+            selectedItemIds.add(item.batchItemId);
+            await storage.updateSimilarGroupItemSelection(group.id, item.batchItemId, true);
+          } else {
+            discardedItemIds.add(item.batchItemId);
+            await storage.updateSimilarGroupItemSelection(group.id, item.batchItemId, false);
+          }
+        }
+      }
+
+      // Now finalize all batch items into tagged_photos
+      const allItems = await storage.getBatchItems(batch.id);
+      let keptCount = 0;
+      let discardedCount = 0;
+
+      for (const item of allItems) {
+        if (discardedItemIds.has(item.id)) {
+          await storage.updateBatchItemStatus(item.id, "discarded");
+          discardedCount++;
+        } else {
+          // Items not in any group OR selected items get added to library
+          await storage.createTaggedPhoto({
+            photoId: item.filename,
+            photoUrl: item.photoUrl,
+            description: item.originalFilename,
+            tags: item.tags,
+            originalFilename: item.originalFilename,
+            storagePath: item.storagePath,
+            userId,
+            folderId: batch.folderId,
+          });
+          await storage.updateBatchItemStatus(item.id, "kept");
+          keptCount++;
+        }
+      }
+
+      await storage.updatePhotoBatchStatus(batch.id, "complete");
+
+      console.log(`Batch ${batch.id} resolved: ${keptCount} kept, ${discardedCount} discarded`);
+
+      res.json({
+        success: true,
+        keptCount,
+        discardedCount,
+        folderId: batch.folderId,
+      });
+    } catch (error) {
+      console.error("Error resolving batch:", error);
+      res.status(500).json({ error: "Failed to resolve batch" });
+    }
+  });
+
+  // Re-run similarity detection with different strictness
+  app.post("/api/photo-batches/:batchId/redetect", async (req, res) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+      const batch = await storage.getPhotoBatch(req.params.batchId);
+      if (!batch || batch.userId !== userId) {
+        return res.status(404).json({ error: "Batch not found" });
+      }
+
+      const { strictness = "medium" } = req.body;
+
+      // Clean up old groups - delete items first, then groups
+      const { eq: eqOp } = await import("drizzle-orm");
+      const { similarGroupItems: sgiTable, similarGroups: sgTable } = await import("@shared/schema");
+      const { db: database } = await import("./db");
+
+      const oldGroups = await storage.getSimilarGroups(batch.id);
+      for (const group of oldGroups) {
+        await database.delete(sgiTable).where(eqOp(sgiTable.groupId, group.id));
+      }
+      await database.delete(sgTable).where(eqOp(sgTable.batchId, batch.id));
+
+      // Re-run detection with new threshold
+      const items = await storage.getBatchItems(batch.id);
+      const threshold = getThresholdForStrictness(strictness);
+      const hashItems = items
+        .filter(item => item.hash)
+        .map(item => ({ id: item.id, hash: item.hash! }));
+
+      const simGroups = findSimilarGroups(hashItems, threshold);
+
+      if (simGroups.length > 0) {
+        for (const group of simGroups) {
+          const dbGroup = await storage.createSimilarGroup(batch.id);
+          for (const member of group.items) {
+            await storage.createSimilarGroupItem({
+              groupId: dbGroup.id,
+              batchItemId: member.itemId,
+              distance: member.distance,
+            });
+          }
+        }
+        await storage.updatePhotoBatchStatus(batch.id, "needs_review");
+
+        const groups = await storage.getSimilarGroups(batch.id);
+
+        res.json({
+          batchId: batch.id,
+          strictness,
+          status: "needs_review",
+          similarGroups: groups.length,
+          groups: groups.map(g => ({
+            id: g.id,
+            items: g.items.map(item => ({
+              id: item.batchItemId,
+              photoUrl: item.batchItem.photoUrl,
+              originalFilename: item.batchItem.originalFilename,
+              distance: item.distance,
+              isSelected: item.isSelected,
+            })),
+          })),
+        });
+      } else {
+        // No similar groups at this strictness - auto-finalize all photos
+        for (const item of items) {
+          if (item.status === "pending") {
+            await storage.createTaggedPhoto({
+              photoId: item.filename,
+              photoUrl: item.photoUrl,
+              description: item.originalFilename,
+              tags: item.tags,
+              originalFilename: item.originalFilename,
+              storagePath: item.storagePath,
+              userId,
+              folderId: batch.folderId,
+            });
+            await storage.updateBatchItemStatus(item.id, "kept");
+          }
+        }
+        await storage.updatePhotoBatchStatus(batch.id, "complete");
+
+        res.json({
+          batchId: batch.id,
+          strictness,
+          status: "complete",
+          similarGroups: 0,
+          groups: [],
+          autoFinalized: true,
+          keptCount: items.length,
+        });
+      }
+    } catch (error) {
+      console.error("Error re-detecting:", error);
+      res.status(500).json({ error: "Failed to re-run detection" });
+    }
   });
 
   // Webhook endpoint for n8n to create tagged photos

@@ -145,7 +145,7 @@ export default function PhotoUploadModal({
       setUploadProgress(30);
       setUploadStatus(`Uploading ${validFiles.length} photo(s)...`);
 
-      const response = await fetch("/api/photo-batches/upload", {
+      const response = await fetch("/api/photos/batch-upload", {
         method: "POST",
         body: formData,
       });

@@ -125,8 +125,8 @@ export default function PhotoUploadModal({
     if (validFiles.length === 0) return;
 
     setPhase("uploading");
-    setUploadProgress(10);
-    setUploadStatus("Preparing upload...");
+    setUploadProgress(5);
+    setUploadStatus(`Uploading ${validFiles.length} photo(s)...`);
 
     try {
       const formData = new FormData();
@@ -142,16 +142,10 @@ export default function PhotoUploadModal({
 
       formData.append("strictness", "medium");
 
-      setUploadProgress(30);
-      setUploadStatus(`Uploading ${validFiles.length} photo(s)...`);
-
       const response = await fetch("/api/photos/batch-upload", {
         method: "POST",
         body: formData,
       });
-
-      setUploadProgress(70);
-      setUploadStatus("Analyzing for duplicates...");
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -159,24 +153,69 @@ export default function PhotoUploadModal({
       }
 
       const data = await response.json();
+      const batchId = data.batchId;
+
+      setUploadProgress(10);
+      setUploadStatus("Processing photos...");
+
+      const pollUntilDone = (): Promise<void> => {
+        return new Promise((resolve, reject) => {
+          const interval = setInterval(async () => {
+            try {
+              const progressRes = await fetch(`/api/photo-batches/${batchId}/progress`);
+              if (!progressRes.ok) return;
+
+              const prog = await progressRes.json();
+
+              if (prog.phase === "error") {
+                clearInterval(interval);
+                reject(new Error("Processing failed on the server"));
+                return;
+              }
+
+              if (prog.total > 0 && prog.phase !== "complete") {
+                const pct = Math.round((prog.processed / prog.total) * 80) + 10;
+                setUploadProgress(Math.min(pct, 90));
+                setUploadStatus(prog.phase || `Processing ${prog.processed} of ${prog.total}...`);
+              }
+
+              if (prog.phase === "complete") {
+                clearInterval(interval);
+                setUploadProgress(95);
+                setUploadStatus("Finalizing...");
+                resolve();
+              }
+            } catch {
+              // Ignore individual poll errors
+            }
+          }, 1500);
+        });
+      };
+
+      await pollUntilDone();
+
+      const batchRes = await fetch(`/api/photo-batches/${batchId}`);
+      if (!batchRes.ok) throw new Error("Failed to fetch batch result");
+      const batchData = await batchRes.json();
 
       setUploadProgress(100);
 
-      if (data.status === "needs_review" && data.groups && data.groups.length > 0) {
-        setReviewBatchId(data.batchId);
-        setReviewGroups(data.groups);
+      if (batchData.status === "needs_review" && batchData.groups && batchData.groups.length > 0) {
+        setReviewBatchId(batchId);
+        setReviewGroups(batchData.groups);
         setReviewStrictness("medium");
         setPhase("review");
         setShowReviewModal(true);
       } else {
         setPhase("done");
-        setUploadStatus(`${data.totalPhotos} photo(s) added to your library.`);
+        const totalPhotos = batchData.items?.length || data.totalPhotos;
+        setUploadStatus(`${totalPhotos} photo(s) added to your library.`);
         queryClient.invalidateQueries({ queryKey: ["/api/tagged-photos"] });
         queryClient.invalidateQueries({ queryKey: ["/api/photo-folders"] });
         onUploadComplete();
         toast({
           title: "Upload complete",
-          description: `${data.totalPhotos} photo(s) added successfully.`,
+          description: `${totalPhotos} photo(s) added successfully.`,
         });
       }
     } catch (error) {

@@ -21,6 +21,9 @@ import { computeDHash, findSimilarGroups, getThresholdForStrictness } from "./si
 // Initialize object storage service
 const objectStorageService = new ObjectStorageService();
 
+// In-memory progress tracker for batch uploads
+const batchProgress = new Map<string, { processed: number; total: number; phase: string }>();
+
 // Helper to get userId from session (throws if not authenticated)
 function getUserId(req: Request): string {
   const userId = req.session.userId;
@@ -1261,145 +1264,160 @@ export async function registerRoutes(
 
       console.log(`Created batch ${batch.id} for ${files.length} photos (strictness: ${strictness})`);
 
-      // Process uploads and compute hashes
-      const batchItems = [];
-      for (const file of files) {
+      // Initialize progress tracking
+      batchProgress.set(batch.id, { processed: 0, total: files.length, phase: "Starting..." });
+
+      // Respond immediately with batchId so frontend can start polling
+      res.json({ batchId: batch.id, status: "processing", totalPhotos: files.length });
+
+      // Process uploads in the background
+      const batchId = batch.id;
+      (async () => {
         try {
-          const filePath = file.path;
+          const batchItems = [];
+          let processedCount = 0;
+          for (const file of files) {
+            try {
+              const filePath = file.path;
 
-          // Analyze image with OpenAI Vision
-          let tags: string[] = [];
-          if (isOpenAIConfigured()) {
-            const taggingResult = await analyzeImageForTags(filePath);
-            if (taggingResult.success) {
-              tags = taggingResult.tags;
-            }
-          }
+              batchProgress.set(batchId, { processed: processedCount, total: files.length, phase: `Tagging photo ${processedCount + 1} of ${files.length}...` });
 
-          // Upload to object storage
-          let photoUrl: string;
-          let storagePath: string;
-          try {
-            const fileBuffer = fs.readFileSync(filePath);
-            const uploadResult = await objectStorageService.uploadFile(
-              fileBuffer,
-              file.originalname,
-              file.mimetype
-            );
-            photoUrl = uploadResult.objectPath;
-            storagePath = uploadResult.objectPath;
-            try { fs.unlinkSync(filePath); } catch {}
-          } catch {
-            photoUrl = `/uploads/${file.filename}`;
-            storagePath = filePath;
-          }
-
-          // Compute perceptual hash from the file we already have
-          let hash: string | null = null;
-          try {
-            let hashBuffer: Buffer;
-            if (storagePath.startsWith("/objects/")) {
-              const objFile = await objectStorageService.getFileForPath(storagePath);
-              if (objFile) {
-                const [downloadedBuffer] = await (objFile as any).download();
-                hashBuffer = downloadedBuffer;
-              } else {
-                throw new Error("Object not found in storage");
+              // Analyze image with OpenAI Vision
+              let tags: string[] = [];
+              if (isOpenAIConfigured()) {
+                const taggingResult = await analyzeImageForTags(filePath);
+                if (taggingResult.success) {
+                  tags = taggingResult.tags;
+                }
               }
-            } else {
-              const localPath = storagePath.startsWith("/uploads/")
-                ? path.join(process.cwd(), storagePath)
-                : storagePath;
-              hashBuffer = fs.readFileSync(localPath);
+
+              // Upload to object storage
+              let photoUrl: string;
+              let storagePath: string;
+              try {
+                const fileBuffer = fs.readFileSync(filePath);
+                const uploadResult = await objectStorageService.uploadFile(
+                  fileBuffer,
+                  file.originalname,
+                  file.mimetype
+                );
+                photoUrl = uploadResult.objectPath;
+                storagePath = uploadResult.objectPath;
+                try { fs.unlinkSync(filePath); } catch {}
+              } catch {
+                photoUrl = `/uploads/${file.filename}`;
+                storagePath = filePath;
+              }
+
+              // Compute perceptual hash
+              let hash: string | null = null;
+              try {
+                let hashBuffer: Buffer;
+                if (storagePath.startsWith("/objects/")) {
+                  const objFile = await objectStorageService.getFileForPath(storagePath);
+                  if (objFile) {
+                    const [downloadedBuffer] = await (objFile as any).download();
+                    hashBuffer = downloadedBuffer;
+                  } else {
+                    throw new Error("Object not found in storage");
+                  }
+                } else {
+                  const localPath = storagePath.startsWith("/uploads/")
+                    ? path.join(process.cwd(), storagePath)
+                    : storagePath;
+                  hashBuffer = fs.readFileSync(localPath);
+                }
+                const hashResult = await computeDHash(hashBuffer);
+                if (hashResult.success) {
+                  hash = hashResult.hash;
+                }
+              } catch (hashErr) {
+                console.warn(`Hash computation failed for ${file.originalname}:`, hashErr);
+              }
+
+              const item = await storage.createBatchItem({
+                batchId,
+                filename: file.filename,
+                originalFilename: file.originalname,
+                storagePath,
+                photoUrl,
+                hash,
+                tags: tags.length > 0 ? tags : null,
+              });
+              batchItems.push(item);
+              processedCount++;
+              batchProgress.set(batchId, { processed: processedCount, total: files.length, phase: `Processed ${processedCount} of ${files.length} photos` });
+            } catch (fileError) {
+              console.error(`Error processing ${file.originalname}:`, fileError);
+              processedCount++;
+              batchProgress.set(batchId, { processed: processedCount, total: files.length, phase: `Processed ${processedCount} of ${files.length} photos` });
+              try { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); } catch {}
             }
-            const hashResult = await computeDHash(hashBuffer);
-            if (hashResult.success) {
-              hash = hashResult.hash;
-            }
-          } catch (hashErr) {
-            console.warn(`Hash computation failed for ${file.originalname}:`, hashErr);
           }
 
-          const item = await storage.createBatchItem({
-            batchId: batch.id,
-            filename: file.filename,
-            originalFilename: file.originalname,
-            storagePath,
-            photoUrl,
-            hash,
-            tags: tags.length > 0 ? tags : null,
-          });
-          batchItems.push(item);
-        } catch (fileError) {
-          console.error(`Error processing ${file.originalname}:`, fileError);
-          try { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); } catch {}
-        }
-      }
+          batchProgress.set(batchId, { processed: files.length, total: files.length, phase: "Analyzing for similar photos..." });
 
-      // Run similarity detection
-      const threshold = getThresholdForStrictness(strictness);
-      const hashItems = batchItems
-        .filter(item => item.hash)
-        .map(item => ({ id: item.id, hash: item.hash! }));
+          // Run similarity detection
+          const threshold = getThresholdForStrictness(strictness);
+          const hashItems = batchItems
+            .filter(item => item.hash)
+            .map(item => ({ id: item.id, hash: item.hash! }));
 
-      const simGroups = findSimilarGroups(hashItems, threshold);
+          const simGroups = findSimilarGroups(hashItems, threshold);
 
-      if (simGroups.length > 0) {
-        // Create similar groups in DB
-        for (const group of simGroups) {
-          const dbGroup = await storage.createSimilarGroup(batch.id);
-          for (const member of group.items) {
-            await storage.createSimilarGroupItem({
-              groupId: dbGroup.id,
-              batchItemId: member.itemId,
-              distance: member.distance,
-            });
+          if (simGroups.length > 0) {
+            for (const group of simGroups) {
+              const dbGroup = await storage.createSimilarGroup(batchId);
+              for (const member of group.items) {
+                await storage.createSimilarGroupItem({
+                  groupId: dbGroup.id,
+                  batchItemId: member.itemId,
+                  distance: member.distance,
+                });
+              }
+            }
+            await storage.updatePhotoBatchStatus(batchId, "needs_review");
+            console.log(`Batch ${batchId}: Found ${simGroups.length} similar groups, needs review`);
+          } else {
+            for (const item of batchItems) {
+              await storage.createTaggedPhoto({
+                photoId: item.filename,
+                photoUrl: item.photoUrl,
+                description: item.originalFilename,
+                tags: item.tags,
+                originalFilename: item.originalFilename,
+                storagePath: item.storagePath,
+                userId,
+                folderId: targetFolderId,
+              });
+              await storage.updateBatchItemStatus(item.id, "kept");
+            }
+            await storage.updatePhotoBatchStatus(batchId, "complete");
+            console.log(`Batch ${batchId}: No similar photos, auto-finalized ${batchItems.length} photos`);
           }
-        }
-        await storage.updatePhotoBatchStatus(batch.id, "needs_review");
-        console.log(`Batch ${batch.id}: Found ${simGroups.length} similar groups, needs review`);
-      } else {
-        // No similar photos - auto-finalize all into tagged_photos
-        for (const item of batchItems) {
-          await storage.createTaggedPhoto({
-            photoId: item.filename,
-            photoUrl: item.photoUrl,
-            description: item.originalFilename,
-            tags: item.tags,
-            originalFilename: item.originalFilename,
-            storagePath: item.storagePath,
-            userId,
-            folderId: targetFolderId,
-          });
-          await storage.updateBatchItemStatus(item.id, "kept");
-        }
-        await storage.updatePhotoBatchStatus(batch.id, "complete");
-        console.log(`Batch ${batch.id}: No similar photos, auto-finalized ${batchItems.length} photos`);
-      }
 
-      const groups = await storage.getSimilarGroups(batch.id);
-
-      res.json({
-        batchId: batch.id,
-        status: simGroups.length > 0 ? "needs_review" : "complete",
-        totalPhotos: batchItems.length,
-        similarGroups: groups.length,
-        folderId: targetFolderId,
-        groups: groups.map(g => ({
-          id: g.id,
-          items: g.items.map(item => ({
-            id: item.batchItemId,
-            photoUrl: item.batchItem.photoUrl,
-            originalFilename: item.batchItem.originalFilename,
-            distance: item.distance,
-            isSelected: item.isSelected,
-          })),
-        })),
-      });
+          batchProgress.set(batchId, { processed: files.length, total: files.length, phase: "complete" });
+          setTimeout(() => batchProgress.delete(batchId), 60000);
+        } catch (bgError) {
+          console.error("Background batch processing error:", bgError);
+          batchProgress.set(batchId, { processed: -1, total: files.length, phase: "error" });
+          try { await storage.updatePhotoBatchStatus(batchId, "error"); } catch {}
+          setTimeout(() => batchProgress.delete(batchId), 60000);
+        }
+      })();
     } catch (error) {
       console.error("Batch upload error:", error);
       res.status(500).json({ error: error instanceof Error ? error.message : "Batch upload failed" });
     }
+  });
+
+  // Get batch upload progress (lightweight polling endpoint)
+  app.get("/api/photo-batches/:batchId/progress", (req, res) => {
+    const progress = batchProgress.get(req.params.batchId);
+    if (!progress) {
+      return res.json({ processed: 0, total: 0, phase: "unknown" });
+    }
+    res.json(progress);
   });
 
   // Get batch status with similar groups

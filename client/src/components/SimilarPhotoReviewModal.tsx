@@ -320,23 +320,6 @@ export default function SimilarPhotoReviewModal({
               </Badge>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Label className="text-sm text-muted-foreground">Strictness:</Label>
-              <Select
-                value={strictness}
-                onValueChange={handleStrictnessChange}
-                disabled={isRedetecting || isSubmitting}
-              >
-                <SelectTrigger className="w-[120px]" data-testid="select-strictness">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           {isRedetecting ? (

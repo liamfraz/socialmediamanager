@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 01-03-PLAN.md — Replit removal and deployment hardening
-last_updated: "2026-03-26T12:07:44.629Z"
+stopped_at: Completed 02-01-PLAN.md — Stripe billing schema foundation
+last_updated: "2026-03-26T14:10:14.640Z"
 last_activity: "2026-03-26 — Plan 01-03 complete: Replit removal and deployment hardening"
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 6
+  completed_plans: 4
   percent: 100
 ---
 
@@ -52,6 +52,7 @@ Progress: [██████████] 100% (Phase 1)
 *Updated after each plan completion*
 | Phase 01-infrastructure P02 | 2 | 2 tasks | 2 files |
 | Phase 01-infrastructure P03 | 3 | 3 tasks | 5 files |
+| Phase 02-billing P01 | 12 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,9 @@ Recent decisions affecting current work:
 - [Phase 01-infrastructure]: Migration script uses standalone pg Pool — avoids importing full server stack as CLI script
 - [Phase 01-infrastructure]: Removed REPLIT_DOMAINS/REPLIT_DEV_DOMAIN fallback — APP_BASE_URL is now the only base URL config for production deployments
 - [Phase 01-infrastructure]: vite.config.ts converted from async module (top-level await) to sync config after removing dynamic Replit plugin imports
+- [Phase 02-billing]: stripe@17.7.0 pinned — apiVersion 2025-02-24.acacia is the correct string for v17 (plan had 2024-12-18.acacia which is v21+)
+- [Phase 02-billing]: Idempotency insert into stripe_events happens BEFORE event processing — prevents duplicate handling even on mid-handler crash
+- [Phase 02-billing]: PLANS config in shared/plans.ts is single source of truth for all billing tier definitions and price IDs
 
 ### Pending Todos
 
@@ -84,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T12:04:35.595Z
-Stopped at: Completed 01-03-PLAN.md — Replit removal and deployment hardening
+Last session: 2026-03-26T14:10:03.511Z
+Stopped at: Completed 02-01-PLAN.md — Stripe billing schema foundation
 Resume file: None

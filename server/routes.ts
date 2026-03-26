@@ -15,11 +15,8 @@ import {
   exchangeCodeForToken,
   postToInstagram,
 } from "./instagram";
-import { ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
+import { uploadFile as cloudUpload } from "./cloud-storage";
 import { computeDHash, findSimilarGroups, getThresholdForStrictness } from "./similarity";
-
-// Initialize object storage service
-const objectStorageService = new ObjectStorageService();
 
 // In-memory progress tracker for batch uploads
 const batchProgress = new Map<string, { processed: number; total: number; phase: string }>();
@@ -1072,18 +1069,9 @@ export async function registerRoutes(
     }
   });
 
-  // Serve files from object storage
-  app.get("/objects/*", async (req, res) => {
-    try {
-      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
-      await objectStorageService.downloadObject(objectFile, res);
-    } catch (error) {
-      console.error("Error serving object:", error);
-      if (error instanceof ObjectNotFoundError) {
-        return res.status(404).json({ error: "Object not found" });
-      }
-      return res.status(500).json({ error: "Failed to serve object" });
-    }
+  // Legacy /objects/* route — Replit GCS sidecar no longer available; return 410 Gone
+  app.get("/objects/*", (_req, res) => {
+    res.status(410).json({ error: "Legacy object storage no longer available. Files have been migrated to R2." });
   });
 
   // Upload and tag photos endpoint (scoped to user)
@@ -1143,29 +1131,15 @@ export async function registerRoutes(
             console.warn("OpenAI not configured, skipping tagging");
           }
 
-          // Upload to object storage for persistence across deployments
-          let photoUrl: string;
-          let storagePath: string;
+          // Upload to R2 cloud storage
+          const fileBuffer = fs.readFileSync(filePath);
+          const photoUrl = await cloudUpload(fileBuffer, file.originalname, file.mimetype);
+          const storagePath = photoUrl;
+          console.log(`Uploaded ${file.originalname} to R2: ${photoUrl}`);
+          // Clean up local temp file after successful upload
           try {
-            const fileBuffer = fs.readFileSync(filePath);
-            const uploadResult = await objectStorageService.uploadFile(
-              fileBuffer,
-              file.originalname,
-              file.mimetype
-            );
-            photoUrl = uploadResult.objectPath;
-            storagePath = uploadResult.objectPath;
-            console.log(`Uploaded ${file.originalname} to object storage: ${photoUrl}`);
-            // Clean up local temp file after successful upload
-            try {
-              fs.unlinkSync(filePath);
-            } catch {}
-          } catch (uploadError) {
-            console.warn(`Object storage upload failed, falling back to local: ${uploadError}`);
-            // Fallback to local storage if object storage fails
-            photoUrl = `/uploads/${file.filename}`;
-            storagePath = filePath;
-          }
+            fs.unlinkSync(filePath);
+          } catch {}
 
           // Create tagged photo record in database (with userId and optional folderId)
           const photo = await storage.createTaggedPhoto({
@@ -1291,37 +1265,23 @@ export async function registerRoutes(
                 }
               }
 
-              // Upload to object storage
-              let photoUrl: string;
-              let storagePath: string;
-              try {
-                const fileBuffer = fs.readFileSync(filePath);
-                const uploadResult = await objectStorageService.uploadFile(
-                  fileBuffer,
-                  file.originalname,
-                  file.mimetype
-                );
-                photoUrl = uploadResult.objectPath;
-                storagePath = uploadResult.objectPath;
-                try { fs.unlinkSync(filePath); } catch {}
-              } catch {
-                photoUrl = `/uploads/${file.filename}`;
-                storagePath = filePath;
-              }
+              // Upload to R2 cloud storage
+              const fileBuffer = fs.readFileSync(filePath);
+              const photoUrl = await cloudUpload(fileBuffer, file.originalname, file.mimetype);
+              const storagePath = photoUrl;
+              try { fs.unlinkSync(filePath); } catch {}
 
-              // Compute perceptual hash
+              // Compute perceptual hash — storagePath is always a CDN URL after R2 migration
               let hash: string | null = null;
               try {
                 let hashBuffer: Buffer;
-                if (storagePath.startsWith("/objects/")) {
-                  const objFile = await objectStorageService.getFileForPath(storagePath);
-                  if (objFile) {
-                    const [downloadedBuffer] = await (objFile as any).download();
-                    hashBuffer = downloadedBuffer;
-                  } else {
-                    throw new Error("Object not found in storage");
-                  }
+                if (storagePath.startsWith("https://")) {
+                  // Fetch from CDN URL
+                  const fetchResponse = await fetch(storagePath);
+                  const arrayBuffer = await fetchResponse.arrayBuffer();
+                  hashBuffer = Buffer.from(arrayBuffer);
                 } else {
+                  // Legacy local path fallback (pre-migration rows)
                   const localPath = storagePath.startsWith("/uploads/")
                     ? path.join(process.cwd(), storagePath)
                     : storagePath;

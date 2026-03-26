@@ -1059,20 +1059,7 @@ export async function registerRoutes(
     }
   });
 
-  // Serve uploaded files statically (legacy local files)
-  app.use("/uploads", (req, res, next) => {
-    const filePath = path.join(UPLOADS_DIR, req.path);
-    if (fs.existsSync(filePath)) {
-      res.sendFile(filePath);
-    } else {
-      res.status(404).json({ error: "File not found" });
-    }
-  });
-
-  // Legacy /objects/* route — Replit GCS sidecar no longer available; return 410 Gone
-  app.get("/objects/*", (_req, res) => {
-    res.status(410).json({ error: "Legacy object storage no longer available. Files have been migrated to R2." });
-  });
+  // Legacy /uploads/* and /objects/* routes removed — all files are served from Cloudflare R2 CDN.
 
   // Upload and tag photos endpoint (scoped to user)
   app.post("/api/photos/upload-and-tag", upload.array("photos", 20), async (req, res) => {
@@ -2455,10 +2442,9 @@ export async function registerRoutes(
       }
 
       // Build base URL for converting relative image paths to full URLs
-      // Priority: APP_BASE_URL (custom domain) > REPLIT_DOMAINS > REPLIT_DEV_DOMAIN > localhost
+      // Priority: APP_BASE_URL (custom domain) > localhost fallback
       const appBaseUrl = process.env.APP_BASE_URL;
-      const replitDomain = process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN;
-      const baseUrl = appBaseUrl || (replitDomain ? `https://${replitDomain}` : `http://localhost:${process.env.PORT || 5000}`);
+      const baseUrl = appBaseUrl || `http://localhost:${process.env.PORT || 5000}`;
 
       // Process each due post once
       for (const post of duePosts) {

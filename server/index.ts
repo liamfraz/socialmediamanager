@@ -9,7 +9,7 @@ import { createServer } from "http";
 const app = express();
 const httpServer = createServer(app);
 
-// Trust proxy for production (Replit runs behind a proxy)
+// Trust proxy for production (production hosts run behind a proxy)
 app.set("trust proxy", 1);
 
 // Health check endpoint - registered before any middleware

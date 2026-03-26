@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 ## Current Position
 
 Phase: 1 of 7 (Infrastructure)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-03-26 — Roadmap created, all 24 requirements mapped to 7 phases
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-03-26 — Plan 01-01 complete: PostgreSQL sessions + R2 cloud storage module
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 5%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: 3 min
+- Total execution time: 0.04 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01-infrastructure | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: —
-- Trend: —
+- Last 5 plans: 01-01 (3min)
+- Trend: On track
 
 *Updated after each plan completion*
 
@@ -46,6 +46,8 @@ Recent decisions affecting current work:
 - [Pre-phase]: Pin stripe@^17.x — v21 shipped 2026-03-25 with breaking TypeScript changes
 - [Pre-phase]: Pin react-konva@18.2.10 — v19 requires React 19, do not upgrade mid-milestone
 - [Pre-phase]: Do NOT use passport-instagram — targets deprecated Basic Display API, use custom OAuth handler
+- [01-01]: Use createTableIfMissing: true on PgSession — no DDL migration needed for user_sessions table
+- [01-01]: Non-null assertions on R2 env vars — fail fast at startup rather than runtime guards returning empty strings
 
 ### Pending Todos
 
@@ -60,5 +62,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-26
-Stopped at: Roadmap creation complete. No plans written yet.
+Stopped at: Completed 01-01-PLAN.md — PostgreSQL sessions and R2 cloud storage module
 Resume file: None

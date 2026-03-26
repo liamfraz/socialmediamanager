@@ -9,8 +9,8 @@ Requirements for production launch. Each maps to roadmap phases.
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: App uses PostgreSQL-backed session store instead of MemoryStore
-- [ ] **INFRA-02**: User uploads are stored in Cloudflare R2 with public URLs
+- [x] **INFRA-01**: App uses PostgreSQL-backed session store instead of MemoryStore
+- [x] **INFRA-02**: User uploads are stored in Cloudflare R2 with public URLs
 - [ ] **INFRA-03**: Existing local uploads are migrated to R2 on deployment
 - [ ] **INFRA-04**: App serves uploaded images via R2 public URLs (not local filesystem)
 - [ ] **INFRA-05**: App is deployable to production hosting (Railway/Fly.io) with environment config
@@ -98,8 +98,8 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete (01-01) |
+| INFRA-02 | Phase 1 | Complete (01-01) |
 | INFRA-03 | Phase 1 | Pending |
 | INFRA-04 | Phase 1 | Pending |
 | INFRA-05 | Phase 1 | Pending |

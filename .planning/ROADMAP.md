@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Wire PostgreSQL session store and create R2 cloud-storage module
+- [x] 01-01-PLAN.md — Wire PostgreSQL session store and create R2 cloud-storage module
 - [ ] 01-02-PLAN.md — Replace upload handler with R2 and create migration script
 - [ ] 01-03-PLAN.md — Remove Replit code, clean dependencies, verify deployment readiness
 
@@ -114,7 +114,7 @@ Note: Phase 5 (Image Composition) depends only on Phase 1 and can be executed in
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure | 0/3 | Planning complete | - |
+| 1. Infrastructure | 1/3 | In progress | - |
 | 2. Billing | 0/? | Not started | - |
 | 3. Instagram Publishing | 0/? | Not started | - |
 | 4. Facebook Publishing | 0/? | Not started | - |

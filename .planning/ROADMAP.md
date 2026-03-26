@@ -48,7 +48,12 @@ Plans:
   3. Subscription status updates in the app within seconds of a Stripe webhook event (upgrade, cancel, renewal)
   4. User can open Stripe Customer Portal from the app to upgrade, downgrade, or cancel their plan
   5. Attempting to use a paid feature on a free/expired account shows a clear upgrade prompt instead of an error
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Schema migration, plan config, and webhook handler with idempotency
+- [ ] 02-02-PLAN.md — Stripe Checkout session, Customer Portal, and billing success page
+- [ ] 02-03-PLAN.md — Subscription gate middleware, pricing page, and upgrade prompt UI
 
 ### Phase 3: Instagram Publishing
 **Goal**: Users can connect their Instagram Business account and have approved posts publish directly to Instagram via the Graph API
@@ -115,7 +120,7 @@ Note: Phase 5 (Image Composition) depends only on Phase 1 and can be executed in
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure | 3/3 | Complete    | 2026-03-26 |
-| 2. Billing | 0/? | Not started | - |
+| 2. Billing | 0/3 | Planned | - |
 | 3. Instagram Publishing | 0/? | Not started | - |
 | 4. Facebook Publishing | 0/? | Not started | - |
 | 5. Image Composition | 0/? | Not started | - |

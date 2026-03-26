@@ -13,7 +13,7 @@ This milestone takes the existing Replit-scaffolded photographer workflow (bulk 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Infrastructure** - Replace MemoryStore sessions with PostgreSQL-backed store and migrate local file storage to Cloudflare R2 (completed 2026-03-26)
-- [ ] **Phase 2: Billing** - Add Stripe subscriptions, free trial, plan gating, and Customer Portal
+- [x] **Phase 2: Billing** - Add Stripe subscriptions, free trial, plan gating, and Customer Portal (completed 2026-03-26)
 - [ ] **Phase 3: Instagram Publishing** - Complete Instagram OAuth, token refresh, and direct Graph API publishing
 - [ ] **Phase 4: Facebook Publishing** - Extend Meta integration to Facebook Pages using the shared Meta App
 - [ ] **Phase 5: Image Composition** - Build Konva canvas editor for duo/quadrant layouts with export to R2
@@ -48,7 +48,7 @@ Plans:
   3. Subscription status updates in the app within seconds of a Stripe webhook event (upgrade, cancel, renewal)
   4. User can open Stripe Customer Portal from the app to upgrade, downgrade, or cancel their plan
   5. Attempting to use a paid feature on a free/expired account shows a clear upgrade prompt instead of an error
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 02-01-PLAN.md — Schema migration, plan config, and webhook handler with idempotency
@@ -120,7 +120,7 @@ Note: Phase 5 (Image Composition) depends only on Phase 1 and can be executed in
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure | 3/3 | Complete    | 2026-03-26 |
-| 2. Billing | 0/3 | Planned | - |
+| 2. Billing | 3/3 | Complete   | 2026-03-26 |
 | 3. Instagram Publishing | 0/? | Not started | - |
 | 4. Facebook Publishing | 0/? | Not started | - |
 | 5. Image Composition | 0/? | Not started | - |

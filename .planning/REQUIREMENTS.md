@@ -21,7 +21,7 @@ Requirements for production launch. Each maps to roadmap phases.
 - [x] **BILL-02**: Three pricing tiers exist: Free (limited), Starter (~$19/mo), Pro (~$49/mo)
 - [x] **BILL-03**: User's subscription status is synced from Stripe webhooks to the database
 - [x] **BILL-04**: User can manage their subscription via Stripe Customer Portal (upgrade, downgrade, cancel)
-- [ ] **BILL-05**: Paid features are gated by active subscription status
+- [x] **BILL-05**: Paid features are gated by active subscription status
 - [x] **BILL-06**: Stripe webhook endpoint handles idempotent event processing (no duplicate actions on retry)
 
 ### Instagram
@@ -107,7 +107,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | BILL-02 | Phase 2 | Complete |
 | BILL-03 | Phase 2 | Complete |
 | BILL-04 | Phase 2 | Complete |
-| BILL-05 | Phase 2 | Pending |
+| BILL-05 | Phase 2 | Complete |
 | BILL-06 | Phase 2 | Complete |
 | INSTA-01 | Phase 3 | Pending |
 | INSTA-02 | Phase 3 | Pending |

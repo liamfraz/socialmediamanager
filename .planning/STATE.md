@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 02-02-PLAN.md — Stripe Checkout, Portal, and BillingSuccess page
-last_updated: "2026-03-26T14:14:42.094Z"
+stopped_at: Completed 02-03-PLAN.md — Subscription gate, Pricing page, and Upgrade Prompt
+last_updated: "2026-03-26T14:20:33.522Z"
 last_activity: "2026-03-26 — Plan 01-03 complete: Replit removal and deployment hardening"
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 100
 ---
 
@@ -54,6 +54,7 @@ Progress: [██████████] 100% (Phase 1)
 | Phase 01-infrastructure P03 | 3 | 3 tasks | 5 files |
 | Phase 02-billing P01 | 12 | 2 tasks | 7 files |
 | Phase 02-billing P02 | 8 | 2 tasks | 4 files |
+| Phase 02-billing P03 | 3 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 02-billing]: PLANS config in shared/plans.ts is single source of truth for all billing tier definitions and price IDs
 - [Phase 02-billing]: Lazy Stripe customer creation in createCheckoutSession — only create customer on first checkout, not at registration
 - [Phase 02-billing]: BillingSuccess polls /api/billing/status for up to 10s then shows graceful timeout — async webhook delivery requires client-side polling
+- [Phase 02-billing]: Checkout endpoint accepts { tier } not { priceId } — keeps Stripe price IDs server-side only, never exposed to client
+- [Phase 02-billing]: Client-safe plan config omits priceIds to avoid process.env exposure in browser bundle
 
 ### Pending Todos
 
@@ -91,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T14:14:33.373Z
-Stopped at: Completed 02-02-PLAN.md — Stripe Checkout, Portal, and BillingSuccess page
+Last session: 2026-03-26T14:20:33.519Z
+Stopped at: Completed 02-03-PLAN.md — Subscription gate, Pricing page, and Upgrade Prompt
 Resume file: None

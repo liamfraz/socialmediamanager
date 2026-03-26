@@ -98,13 +98,45 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (Populated during roadmap creation) | | |
+| INFRA-01 | Phase 1 | Pending |
+| INFRA-02 | Phase 1 | Pending |
+| INFRA-03 | Phase 1 | Pending |
+| INFRA-04 | Phase 1 | Pending |
+| INFRA-05 | Phase 1 | Pending |
+| BILL-01 | Phase 2 | Pending |
+| BILL-02 | Phase 2 | Pending |
+| BILL-03 | Phase 2 | Pending |
+| BILL-04 | Phase 2 | Pending |
+| BILL-05 | Phase 2 | Pending |
+| BILL-06 | Phase 2 | Pending |
+| INSTA-01 | Phase 3 | Pending |
+| INSTA-02 | Phase 3 | Pending |
+| INSTA-03 | Phase 3 | Pending |
+| INSTA-04 | Phase 3 | Pending |
+| INSTA-05 | Phase 3 | Pending |
+| INSTA-06 | Phase 3 | Pending |
+| FB-01 | Phase 4 | Pending |
+| FB-02 | Phase 4 | Pending |
+| FB-03 | Phase 4 | Pending |
+| IMG-01 | Phase 5 | Pending |
+| IMG-02 | Phase 5 | Pending |
+| IMG-03 | Phase 5 | Pending |
+| IMG-04 | Phase 5 | Pending |
+| IMG-05 | Phase 5 | Pending |
+| LAND-01 | Phase 6 | Pending |
+| LAND-02 | Phase 6 | Pending |
+| LAND-03 | Phase 6 | Pending |
+| LAND-04 | Phase 6 | Pending |
+| QA-01 | Phase 7 | Pending |
+| QA-02 | Phase 7 | Pending |
+| QA-03 | Phase 7 | Pending |
+| QA-04 | Phase 7 | Pending |
 
 **Coverage:**
 - v1 requirements: 24 total
-- Mapped to phases: 0
-- Unmapped: 24 ⚠️
+- Mapped to phases: 24
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-26*
-*Last updated: 2026-03-26 after initial definition*
+*Last updated: 2026-03-26 after roadmap creation*

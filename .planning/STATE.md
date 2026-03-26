@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-02-PLAN.md — R2 upload handler wiring and migration script
-last_updated: "2026-03-26T11:59:30.338Z"
-last_activity: "2026-03-26 — Plan 01-01 complete: PostgreSQL sessions + R2 cloud storage module"
+stopped_at: Completed 01-03-PLAN.md — Replit removal and deployment hardening
+last_updated: "2026-03-26T12:04:35.597Z"
+last_activity: "2026-03-26 — Plan 01-02 complete: R2 upload handler wiring and migration script"
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 67
 ---
 
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 
 ## Current Position
 
-Phase: 1 of 7 (Infrastructure)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-03-26 — Plan 01-02 complete: R2 upload handler wiring and migration script
+Phase: 1 of 7 (Infrastructure) — COMPLETE
+Plan: 3 of 3 in current phase (all complete)
+Status: Phase 1 done — ready for Phase 2
+Last activity: 2026-03-26 — Plan 01-03 complete: Replit removal and deployment hardening
 
-Progress: [███████░░░] 67%
+Progress: [██████████] 100% (Phase 1)
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [███████░░░] 67%
 
 *Updated after each plan completion*
 | Phase 01-infrastructure P02 | 2 | 2 tasks | 2 files |
+| Phase 01-infrastructure P03 | 3 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,8 @@ Recent decisions affecting current work:
 - [Phase 01-infrastructure]: Replace /objects/* with 410 Gone — Replit GCS sidecar unavailable outside Replit
 - [Phase 01-infrastructure]: Store R2 CDN URL as both photoUrl and storagePath — removes dual-path lookup logic
 - [Phase 01-infrastructure]: Migration script uses standalone pg Pool — avoids importing full server stack as CLI script
+- [Phase 01-infrastructure]: Removed REPLIT_DOMAINS/REPLIT_DEV_DOMAIN fallback — APP_BASE_URL is now the only base URL config for production deployments
+- [Phase 01-infrastructure]: vite.config.ts converted from async module (top-level await) to sync config after removing dynamic Replit plugin imports
 
 ### Pending Todos
 
@@ -81,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T11:59:30.337Z
-Stopped at: Completed 01-02-PLAN.md — R2 upload handler wiring and migration script
+Last session: 2026-03-26T12:04:35.595Z
+Stopped at: Completed 01-03-PLAN.md — Replit removal and deployment hardening
 Resume file: None

@@ -12,7 +12,7 @@ This milestone takes the existing Replit-scaffolded photographer workflow (bulk 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Infrastructure** - Replace MemoryStore sessions with PostgreSQL-backed store and migrate local file storage to Cloudflare R2
+- [x] **Phase 1: Infrastructure** - Replace MemoryStore sessions with PostgreSQL-backed store and migrate local file storage to Cloudflare R2 (completed 2026-03-26)
 - [ ] **Phase 2: Billing** - Add Stripe subscriptions, free trial, plan gating, and Customer Portal
 - [ ] **Phase 3: Instagram Publishing** - Complete Instagram OAuth, token refresh, and direct Graph API publishing
 - [ ] **Phase 4: Facebook Publishing** - Extend Meta integration to Facebook Pages using the shared Meta App
@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Uploaded photos are accessible via a permanent public URL (not a local filesystem path)
   3. Existing uploads from local storage are accessible after migration — no broken images in the UI
   4. App deploys and starts successfully on Railway or Fly.io with environment variables only (no local files required)
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 01-01-PLAN.md — Wire PostgreSQL session store and create R2 cloud-storage module
@@ -114,7 +114,7 @@ Note: Phase 5 (Image Composition) depends only on Phase 1 and can be executed in
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure | 2/3 | In Progress|  |
+| 1. Infrastructure | 3/3 | Complete   | 2026-03-26 |
 | 2. Billing | 0/? | Not started | - |
 | 3. Instagram Publishing | 0/? | Not started | - |
 | 4. Facebook Publishing | 0/? | Not started | - |

@@ -13,7 +13,7 @@ Requirements for production launch. Each maps to roadmap phases.
 - [x] **INFRA-02**: User uploads are stored in Cloudflare R2 with public URLs
 - [x] **INFRA-03**: Existing local uploads are migrated to R2 on deployment
 - [x] **INFRA-04**: App serves uploaded images via R2 public URLs (not local filesystem)
-- [ ] **INFRA-05**: App is deployable to production hosting (Railway/Fly.io) with environment config
+- [x] **INFRA-05**: App is deployable to production hosting (Railway/Fly.io) with environment config
 
 ### Billing
 
@@ -102,7 +102,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | INFRA-02 | Phase 1 | Complete (01-01) |
 | INFRA-03 | Phase 1 | Complete |
 | INFRA-04 | Phase 1 | Complete |
-| INFRA-05 | Phase 1 | Pending |
+| INFRA-05 | Phase 1 | Complete |
 | BILL-01 | Phase 2 | Pending |
 | BILL-02 | Phase 2 | Pending |
 | BILL-03 | Phase 2 | Pending |

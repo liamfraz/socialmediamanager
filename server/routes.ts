@@ -19,6 +19,8 @@ import { uploadFile as cloudUpload } from "./cloud-storage";
 import { computeDHash, findSimilarGroups, getThresholdForStrictness } from "./similarity";
 import { handleStripeWebhook } from "./billing-webhook";
 import { createCheckoutSession, createPortalSession } from "./billing";
+import { requireSubscription } from "./middleware/requireSubscription";
+import { PLANS } from "@shared/plans";
 
 // In-memory progress tracker for batch uploads
 const batchProgress = new Map<string, { processed: number; total: number; phase: string }>();
@@ -81,16 +83,24 @@ export async function registerRoutes(
   app.post("/api/stripe/webhook", handleStripeWebhook);
 
   // Billing: create Checkout Session (14-day trial, card required)
+  // Accepts { tier: 'starter' | 'pro' } — server resolves priceId from PLANS config
   app.post("/api/billing/checkout", requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = getUserId(req);
-      const { priceId } = req.body;
-      if (!priceId || typeof priceId !== "string") {
-        return res.status(400).json({ error: "priceId is required" });
+      const { tier } = req.body;
+      if (!tier || typeof tier !== "string") {
+        return res.status(400).json({ error: "tier is required" });
+      }
+      if (tier === "free" || !(tier in PLANS)) {
+        return res.status(400).json({ error: "Invalid tier. Must be 'starter' or 'pro'" });
+      }
+      const plan = PLANS[tier as keyof typeof PLANS];
+      if (!plan.priceId) {
+        return res.status(400).json({ error: "Stripe price not configured for this tier" });
       }
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ error: "User not found" });
-      const url = await createCheckoutSession(userId, priceId, user.username);
+      const url = await createCheckoutSession(userId, plan.priceId, user.username);
       return res.json({ url });
     } catch (error: any) {
       console.error("Error creating checkout session:", error);
@@ -650,8 +660,9 @@ export async function registerRoutes(
     }
   });
 
+  // Gated: requires active subscription
   // AI-powered post generation (no webhooks, all server-side)
-  app.post("/api/generate-posts", async (req, res) => {
+  app.post("/api/generate-posts", requireSubscription, async (req, res) => {
     try {
       const userId = req.session.userId;
       if (!userId) {
@@ -1247,8 +1258,9 @@ export async function registerRoutes(
     next(err);
   });
 
+  // Gated: requires active subscription
   // Batch upload with similarity detection
-  app.post("/api/photos/batch-upload", upload.array("photos", 200), async (req, res) => {
+  app.post("/api/photos/batch-upload", requireSubscription, upload.array("photos", 200), async (req, res) => {
     try {
       const userId = req.session.userId;
       if (!userId) {

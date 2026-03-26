@@ -14,6 +14,7 @@ import PostedPosts from "@/pages/PostedPosts";
 import PostDetail from "@/pages/PostDetail";
 import Account from "@/pages/Account";
 import TaggedPhotos from "@/pages/TaggedPhotos";
+import BillingSuccess from "@/pages/BillingSuccess";
 import { Loader2 } from "lucide-react";
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -61,6 +62,7 @@ function AuthenticatedRoutes() {
         <Route path="/tagged-photos" component={TaggedPhotos} />
         <Route path="/post/:id" component={PostDetail} />
         <Route path="/account" component={Account} />
+        <Route path="/billing/success" component={BillingSuccess} />
         <Route component={NotFound} />
       </Switch>
     </AuthenticatedLayout>

@@ -31,7 +31,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Uploaded photos are accessible via a permanent public URL (not a local filesystem path)
   3. Existing uploads from local storage are accessible after migration — no broken images in the UI
   4. App deploys and starts successfully on Railway or Fly.io with environment variables only (no local files required)
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Wire PostgreSQL session store and create R2 cloud-storage module
+- [ ] 01-02-PLAN.md — Replace upload handler with R2 and create migration script
+- [ ] 01-03-PLAN.md — Remove Replit code, clean dependencies, verify deployment readiness
 
 ### Phase 2: Billing
 **Goal**: Users can subscribe to a paid plan, manage their subscription, and paid features are gated behind an active subscription
@@ -109,7 +114,7 @@ Note: Phase 5 (Image Composition) depends only on Phase 1 and can be executed in
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure | 0/? | Not started | - |
+| 1. Infrastructure | 0/3 | Planning complete | - |
 | 2. Billing | 0/? | Not started | - |
 | 3. Instagram Publishing | 0/? | Not started | - |
 | 4. Facebook Publishing | 0/? | Not started | - |

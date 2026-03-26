@@ -48,5 +48,6 @@ export async function getCurrentUser(req: Request): Promise<User | null> {
   if (!req.session?.userId) {
     return null;
   }
-  return storage.getUser(req.session.userId) || null;
+  const user = await storage.getUser(req.session.userId);
+  return user ?? null;
 }

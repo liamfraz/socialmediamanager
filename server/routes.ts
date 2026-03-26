@@ -18,6 +18,7 @@ import {
 import { uploadFile as cloudUpload } from "./cloud-storage";
 import { computeDHash, findSimilarGroups, getThresholdForStrictness } from "./similarity";
 import { handleStripeWebhook } from "./billing-webhook";
+import { createCheckoutSession, createPortalSession } from "./billing";
 
 // In-memory progress tracker for batch uploads
 const batchProgress = new Map<string, { processed: number; total: number; phase: string }>();
@@ -78,6 +79,53 @@ export async function registerRoutes(
 ): Promise<Server> {
   // Stripe webhook — must be registered before any other middleware that might parse rawBody
   app.post("/api/stripe/webhook", handleStripeWebhook);
+
+  // Billing: create Checkout Session (14-day trial, card required)
+  app.post("/api/billing/checkout", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const { priceId } = req.body;
+      if (!priceId || typeof priceId !== "string") {
+        return res.status(400).json({ error: "priceId is required" });
+      }
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      const url = await createCheckoutSession(userId, priceId, user.username);
+      return res.json({ url });
+    } catch (error: any) {
+      console.error("Error creating checkout session:", error);
+      return res.status(500).json({ error: error.message || "Failed to create checkout session" });
+    }
+  });
+
+  // Billing: create Customer Portal session
+  app.post("/api/billing/portal", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const url = await createPortalSession(userId);
+      return res.json({ url });
+    } catch (error: any) {
+      console.error("Error creating portal session:", error);
+      return res.status(500).json({ error: error.message || "Failed to create portal session" });
+    }
+  });
+
+  // Billing: get current subscription status
+  app.get("/api/billing/status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      return res.json({
+        subscriptionStatus: user.subscriptionStatus,
+        planTier: user.planTier,
+        trialEndsAt: user.trialEndsAt,
+      });
+    } catch (error: any) {
+      console.error("Error fetching billing status:", error);
+      return res.status(500).json({ error: error.message || "Failed to fetch billing status" });
+    }
+  });
 
   // Auth routes - Register
   app.post("/api/auth/register", async (req, res) => {

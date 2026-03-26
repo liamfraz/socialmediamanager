@@ -17,6 +17,7 @@ import {
 } from "./instagram";
 import { uploadFile as cloudUpload } from "./cloud-storage";
 import { computeDHash, findSimilarGroups, getThresholdForStrictness } from "./similarity";
+import { handleStripeWebhook } from "./billing-webhook";
 
 // In-memory progress tracker for batch uploads
 const batchProgress = new Map<string, { processed: number; total: number; phase: string }>();
@@ -75,6 +76,9 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Stripe webhook — must be registered before any other middleware that might parse rawBody
+  app.post("/api/stripe/webhook", handleStripeWebhook);
+
   // Auth routes - Register
   app.post("/api/auth/register", async (req, res) => {
     try {

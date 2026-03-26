@@ -65,7 +65,12 @@ Plans:
   3. An approved post publishes to Instagram at its scheduled time and appears in the user's Instagram feed
   4. Each post shows a publish status (pending, published, failed) and failed posts display the specific error message
   5. App does not exceed 50 posts per 24 hours for any connected account and queues excess posts for the next window
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Schema migration + rewrite instagram.ts OAuth to Instagram Business Login (Direct Login)
+- [ ] 03-02-PLAN.md — Container status polling, rate limit checking, and publish error tracking
+- [ ] 03-03-PLAN.md — Token refresh scheduler, OAuth route wiring, conversion guide UI, privacy policy
 
 ### Phase 4: Facebook Publishing
 **Goal**: Users can connect a Facebook Page and publish approved posts to Facebook using the same Meta App established in Phase 3
@@ -121,7 +126,7 @@ Note: Phase 5 (Image Composition) depends only on Phase 1 and can be executed in
 |-------|----------------|--------|-----------|
 | 1. Infrastructure | 3/3 | Complete    | 2026-03-26 |
 | 2. Billing | 3/3 | Complete    | 2026-03-26 |
-| 3. Instagram Publishing | 0/? | Not started | - |
+| 3. Instagram Publishing | 0/3 | In progress | - |
 | 4. Facebook Publishing | 0/? | Not started | - |
 | 5. Image Composition | 0/? | Not started | - |
 | 6. Landing and Pricing | 0/? | Not started | - |

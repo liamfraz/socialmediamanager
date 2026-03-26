@@ -31,7 +31,7 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
 // Post status enum values
-export const postStatusValues = ["pending", "approved", "rejected", "draft", "posted"] as const;
+export const postStatusValues = ["pending", "approved", "rejected", "draft", "publishing", "posted", "failed"] as const;
 export type PostStatus = typeof postStatusValues[number];
 export const postStatusEnum = z.enum(postStatusValues);
 
@@ -51,6 +51,7 @@ export const posts = pgTable("posts", {
   order: integer("order").notNull(),
   layout: text("layout").notNull().default("single"),
   dateManuallySet: boolean("date_manually_set").notNull().default(false),
+  publishError: text("publish_error"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 

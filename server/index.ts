@@ -14,7 +14,12 @@ app.set("trust proxy", 1);
 
 // Health check endpoint - registered before any middleware
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    session_store: "postgresql",
+    storage: "cloudflare-r2",
+  });
 });
 
 declare module "http" {

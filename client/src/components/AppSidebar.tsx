@@ -20,6 +20,11 @@ const mainItems = [
     icon: Home,
   },
   {
+    title: "Tagged Photos",
+    url: "/tagged-photos",
+    icon: Image,
+  },
+  {
     title: "Review Posts",
     url: "/review",
     icon: ClipboardList,
@@ -28,11 +33,6 @@ const mainItems = [
     title: "Posted",
     url: "/posted",
     icon: Send,
-  },
-  {
-    title: "Tagged Photos",
-    url: "/tagged-photos",
-    icon: Image,
   },
 ];
 

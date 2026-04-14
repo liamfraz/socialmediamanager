@@ -177,7 +177,13 @@ export async function registerRoutes(
       }
       
       req.session.userId = user.id;
-      res.json({ id: user.id, username: user.username });
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.status(500).json({ error: "Session save failed" });
+        }
+        res.json({ id: user.id, username: user.username });
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });

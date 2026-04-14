@@ -4,7 +4,15 @@ import { db } from './db';
 import { users } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2025-02-24.acacia' });
+const stripeKey = process.env.STRIPE_SECRET_KEY;
+const stripe = stripeKey?.startsWith('sk_')
+  ? new Stripe(stripeKey, { apiVersion: '2025-02-24.acacia' })
+  : null;
+
+function requireStripe(): Stripe {
+  if (!stripe) throw new Error('Stripe is not configured — set STRIPE_SECRET_KEY');
+  return stripe;
+}
 
 /**
  * Maps a Stripe price ID back to the corresponding plan tier.
@@ -36,7 +44,7 @@ export async function createCheckoutSession(
   let stripeCustomerId = user.stripeCustomerId;
 
   if (!stripeCustomerId) {
-    const customer = await stripe.customers.create({
+    const customer = await requireStripe().customers.create({
       email,
       metadata: { userId },
     });
@@ -44,7 +52,7 @@ export async function createCheckoutSession(
     await db.update(users).set({ stripeCustomerId }).where(eq(users.id, userId));
   }
 
-  const session = await stripe.checkout.sessions.create({
+  const session = await requireStripe().checkout.sessions.create({
     customer: stripeCustomerId,
     mode: 'subscription',
     payment_method_collection: 'always',
@@ -69,7 +77,7 @@ export async function createPortalSession(userId: string): Promise<string> {
   if (!user) throw new Error('User not found');
   if (!user.stripeCustomerId) throw new Error('No Stripe customer for this account');
 
-  const session = await stripe.billingPortal.sessions.create({
+  const session = await requireStripe().billingPortal.sessions.create({
     customer: user.stripeCustomerId,
     return_url: process.env.APP_BASE_URL + '/dashboard',
   });
@@ -77,4 +85,4 @@ export async function createPortalSession(userId: string): Promise<string> {
   return session.url;
 }
 
-export { stripe };
+export { stripe, requireStripe };

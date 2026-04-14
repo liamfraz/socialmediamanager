@@ -17,4 +17,4 @@ ENV NODE_ENV=production
 
 EXPOSE 3000
 
-CMD ["node", "start.js"]
+CMD ["node", "start.cjs"]
